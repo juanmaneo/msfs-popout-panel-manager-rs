@@ -37,3 +37,13 @@ windows-sys = { version = "0.61", features = [
 [profile.release]
 opt-level = 3
 lto = "thin"
+
+# Warnings are always errors.
+[lints.rust]
+warnings = "deny"
+
+[lints.cargo]
+# The crate only fully compiles on Windows: on a Linux `cargo check` every module
+# except the `main` stub is cfg'd out, so the manifest dependency lint would
+# flag dependencies that the Windows build (and `cargo test`) really uses.
+unused_dependencies = "allow"

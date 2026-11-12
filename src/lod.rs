@@ -365,9 +365,11 @@ mod tests {
             tlod_min_on_ground: false,
             ..DynamicLodSetting::default()
         };
-        let mut sim = DynamicLodSimData::default();
-        sim.tlod = 100;
-        sim.alt_above_ground = 5000.0;
+        let mut sim = DynamicLodSimData {
+            tlod: 100,
+            alt_above_ground: 5000.0,
+            ..Default::default()
+        };
         // fps 20 over target: step = max(10, 10) = 10 -> up
         assert_eq!(compute_tlod(&s, &sim, 20), 110);
         // fps 40 under target: step = 20 -> down
@@ -382,9 +384,11 @@ mod tests {
     #[test]
     fn tlod_is_minimum_near_ground_when_enabled() {
         let s = DynamicLodSetting::default(); // tlod_min_on_ground = true
-        let mut sim = DynamicLodSimData::default();
-        sim.tlod = 150;
-        sim.alt_above_ground = 500.0;
+        let sim = DynamicLodSimData {
+            tlod: 150,
+            alt_above_ground: 500.0,
+            ..Default::default()
+        };
         assert_eq!(compute_tlod(&s, &sim, 30), s.tlod_min);
     }
 
@@ -406,11 +410,13 @@ mod tests {
             tlod_min_on_ground: false,
             ..DynamicLodSetting::default()
         };
-        let mut sim = DynamicLodSimData::default();
-        sim.tlod = 100;
-        sim.olod = 200;
-        sim.alt_above_ground = 5500.0;
-        sim.fps = 30; // 30 under target 60
+        let sim = DynamicLodSimData {
+            tlod: 100,
+            olod: 200,
+            alt_above_ground: 5500.0,
+            fps: 30, // 30 under target 60
+            ..Default::default()
+        };
 
         // too soon after attach
         assert!(!lod.update(&mem, &s, &sim, true, t0 + Duration::from_secs(1)));
@@ -441,11 +447,13 @@ mod tests {
             cloud_recovery_tlod: 100,
             ..DynamicLodSetting::default()
         };
-        let mut sim = DynamicLodSimData::default();
-        sim.tlod = 100;
-        sim.olod = 200;
-        sim.alt_above_ground = 5500.0;
-        sim.fps = 30;
+        let mut sim = DynamicLodSimData {
+            tlod: 100,
+            olod: 200,
+            alt_above_ground: 5500.0,
+            fps: 30,
+            ..Default::default()
+        };
         assert!(lod.update(&mem, &s, &sim, true, t0 + Duration::from_secs(5)));
         assert_eq!(lod.read_cloud_quality_value(&mem), 1); // High -> Medium
 

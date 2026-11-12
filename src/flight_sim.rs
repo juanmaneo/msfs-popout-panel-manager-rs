@@ -347,10 +347,15 @@ mod tests {
 
     #[test]
     fn sim_rate_text() {
-        let mut d = HudBarData::default();
-        d.sim_rate = 4.0;
+        let d = HudBarData {
+            sim_rate: 4.0,
+            ..Default::default()
+        };
         assert_eq!(d.sim_rate_text(), "4");
-        d.sim_rate = 0.25;
+        let d = HudBarData {
+            sim_rate: 0.25,
+            ..Default::default()
+        };
         assert_eq!(d.sim_rate_text(), "0.25");
     }
 
@@ -366,10 +371,12 @@ mod tests {
 
     #[test]
     fn reset_clears_aircraft() {
-        let mut f = FlightSimData::default();
-        f.aircraft_name = Some("X".into());
-        f.is_in_cockpit = true;
-        f.is_flight_started = true;
+        let mut f = FlightSimData {
+            aircraft_name: Some("X".into()),
+            is_in_cockpit: true,
+            is_flight_started: true,
+            ..Default::default()
+        };
         f.reset();
         assert!(f.aircraft_name.is_none());
         assert!(!f.is_in_cockpit);

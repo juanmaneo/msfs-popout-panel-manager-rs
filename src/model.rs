@@ -143,7 +143,9 @@ pub struct FloatingPanel {
 
 impl FloatingPanel {
     pub fn has_keyboard_binding(&self) -> bool {
-        self.keyboard_binding.as_deref().is_some_and(|s| !s.is_empty())
+        self.keyboard_binding
+            .as_deref()
+            .is_some_and(|s| !s.is_empty())
     }
 
     /// Enable/disable the floating panel feature, clearing dependent fields on disable.
@@ -452,7 +454,9 @@ impl UserProfile {
     }
 
     pub fn has_floating_panel(&self) -> bool {
-        self.panel_configs.iter().any(|p| p.floating_panel.is_enabled)
+        self.panel_configs
+            .iter()
+            .any(|p| p.floating_panel.is_enabled)
     }
 
     pub fn panel(&self, id: Uuid) -> Option<&PanelConfig> {
@@ -614,16 +618,18 @@ impl UserProfile {
 
     pub fn move_panel_up(&mut self, id: Uuid) {
         if let Some(i) = self.panel_configs.iter().position(|p| p.id == id)
-            && i > 0 {
-                self.panel_configs.swap(i, i - 1);
-            }
+            && i > 0
+        {
+            self.panel_configs.swap(i, i - 1);
+        }
     }
 
     pub fn move_panel_down(&mut self, id: Uuid) {
         if let Some(i) = self.panel_configs.iter().position(|p| p.id == id)
-            && i + 1 < self.panel_configs.len() {
-                self.panel_configs.swap(i, i + 1);
-            }
+            && i + 1 < self.panel_configs.len()
+        {
+            self.panel_configs.swap(i, i + 1);
+        }
     }
 }
 
@@ -897,13 +903,14 @@ impl KeyboardShortcutSetting {
     /// Convert the legacy single-letter binding to the new `a|b|c` format.
     pub fn migrate_legacy(&mut self) {
         if let Some(v) = self.start_pop_out_key_binding.take()
-            && !v.is_empty() {
-                self.pop_out_keyboard_binding = Some(crate::keybinding::sort_binding(&[
-                    "LeftCtrl".to_string(),
-                    "LeftShift".to_string(),
-                    v.to_uppercase(),
-                ]));
-            }
+            && !v.is_empty()
+        {
+            self.pop_out_keyboard_binding = Some(crate::keybinding::sort_binding(&[
+                "LeftCtrl".to_string(),
+                "LeftShift".to_string(),
+                v.to_uppercase(),
+            ]));
+        }
     }
 }
 
@@ -1034,18 +1041,34 @@ mod tests {
         assert_eq!(p.name, "Cessna 172");
         assert!(p.is_locked);
         assert_eq!(p.panel_configs[0].panel_source.x, Some(100));
-        assert_eq!(p.panel_configs[0].panel_source.color.as_deref(), Some("Red"));
-        assert_eq!(p.profile_setting.hud_bar_config.hud_bar_type, HudBarType::Pmdg737);
+        assert_eq!(
+            p.panel_configs[0].panel_source.color.as_deref(),
+            Some("Red")
+        );
+        assert_eq!(
+            p.profile_setting.hud_bar_config.hud_bar_type,
+            HudBarType::Pmdg737
+        );
         assert!(p.panel_configs[0].is_floating);
         assert_eq!(p.panel_configs[0].is_pop_out_success(), None);
 
         let out = serde_json::to_string(&f).unwrap();
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["Profiles"][0]["Id"], "1b4e28ba-2fa1-11d2-883f-0016d3cca427");
+        assert_eq!(
+            v["Profiles"][0]["Id"],
+            "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
+        );
         assert_eq!(v["Profiles"][0]["PanelConfigs"][0]["PanelType"], 2);
-        assert_eq!(v["Profiles"][0]["ProfileSetting"]["HudBarConfig"]["HudBarType"], 2);
+        assert_eq!(
+            v["Profiles"][0]["ProfileSetting"]["HudBarConfig"]["HudBarType"],
+            2
+        );
         assert!(v["Profiles"][0].get("IsPoppedOut").is_none());
-        assert!(v["Profiles"][0]["PanelConfigs"][0].get("PanelHandle").is_none());
+        assert!(
+            v["Profiles"][0]["PanelConfigs"][0]
+                .get("PanelHandle")
+                .is_none()
+        );
     }
 
     #[test]
@@ -1068,19 +1091,25 @@ mod tests {
 
         let out = serde_json::to_value(&f).unwrap();
         assert!(out["ApplicationSetting"].get("TrackIRSetting").is_some());
-        assert!(out["ApplicationSetting"]["TrackIRSetting"]
-            .get("AutoDisableTrackIR")
-            .is_some());
-        assert!(out["ApplicationSetting"]["KeyboardShortcutSetting"]
-            .get("StartPopOutKeyBinding")
-            .is_none());
+        assert!(
+            out["ApplicationSetting"]["TrackIRSetting"]
+                .get("AutoDisableTrackIR")
+                .is_some()
+        );
+        assert!(
+            out["ApplicationSetting"]["KeyboardShortcutSetting"]
+                .get("StartPopOutKeyBinding")
+                .is_none()
+        );
     }
 
     #[test]
     fn legacy_keybinding_is_migrated() {
         let json = r#"{"ApplicationSetting":{"KeyboardShortcutSetting":{"IsEnabled":true,"StartPopOutKeyBinding":"p"}}}"#;
         let mut f: AppSettingFile = serde_json::from_str(json).unwrap();
-        f.application_setting.keyboard_shortcut_setting.migrate_legacy();
+        f.application_setting
+            .keyboard_shortcut_setting
+            .migrate_legacy();
         assert_eq!(
             f.application_setting
                 .keyboard_shortcut_setting
@@ -1107,8 +1136,14 @@ mod tests {
         let mut p = UserProfile::new("x");
         let a = p.add_custom_panel();
         let b = p.add_custom_panel();
-        assert_eq!(p.panel(a).unwrap().panel_source.color.as_deref(), Some("LimeGreen"));
-        assert_eq!(p.panel(b).unwrap().panel_source.color.as_deref(), Some("Red"));
+        assert_eq!(
+            p.panel(a).unwrap().panel_source.color.as_deref(),
+            Some("LimeGreen")
+        );
+        assert_eq!(
+            p.panel(b).unwrap().panel_source.color.as_deref(),
+            Some("Red")
+        );
     }
 
     #[test]
@@ -1126,9 +1161,11 @@ mod tests {
 
     #[test]
     fn full_screen_and_touch_invariants() {
-        let mut c = PanelConfig::default();
-        c.always_on_top = true;
-        c.hide_titlebar = true;
+        let mut c = PanelConfig {
+            always_on_top: true,
+            hide_titlebar: true,
+            ..Default::default()
+        };
         c.set_full_screen(true);
         assert!(!c.always_on_top && !c.hide_titlebar);
         c.auto_game_refocus = false;

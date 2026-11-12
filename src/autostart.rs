@@ -18,9 +18,10 @@ fn decode(bytes: &[u8]) -> String {
 fn strip_declaration(s: &str) -> &str {
     let t = s.trim_start();
     if t.starts_with("<?xml")
-        && let Some(end) = t.find("?>") {
-            return t[end + 2..].trim_start();
-        }
+        && let Some(end) = t.find("?>")
+    {
+        return t[end + 2..].trim_start();
+    }
     t
 }
 
@@ -83,9 +84,10 @@ pub fn add_entry(root: &mut Element, exe_path: &str) {
     match existing {
         Some(i) => {
             if let Some(old) = root.children[i].as_element()
-                && let Some(cl) = old.get_child("CommandLine") {
-                    entry.children.push(XMLNode::Element(cl.clone()));
-                }
+                && let Some(cl) = old.get_child("CommandLine")
+            {
+                entry.children.push(XMLNode::Element(cl.clone()));
+            }
             root.children[i] = XMLNode::Element(entry);
         }
         None => root.children.push(XMLNode::Element(entry)),
@@ -239,12 +241,11 @@ mod tests {
         add_entry(&mut root, "a.exe");
         // give our entry a command line
         for c in root.children.iter_mut() {
-            if let Some(e) = c.as_mut_element() {
-                if e.name == "Launch.Addon" && addon_name(e).as_deref() == Some(ADDON_NAME) {
+            if let Some(e) = c.as_mut_element()
+                && e.name == "Launch.Addon" && addon_name(e).as_deref() == Some(ADDON_NAME) {
                     e.children
                         .push(XMLNode::Element(text_element("CommandLine", "--x")));
                 }
-            }
         }
         add_entry(&mut root, "b.exe");
         assert_eq!(count_addons(&root), 2);

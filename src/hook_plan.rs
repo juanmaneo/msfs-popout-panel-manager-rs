@@ -99,8 +99,10 @@ mod tests {
 
     fn popped_out_profile() -> UserProfile {
         let mut p = UserProfile::new("x");
-        let mut a = PanelConfig::default();
-        a.panel_handle = PanelHandle::Hwnd(10);
+        let a = PanelConfig {
+            panel_handle: PanelHandle::Hwnd(10),
+            ..Default::default()
+        };
         p.panel_configs.push(a);
         p.is_popped_out = true;
         p

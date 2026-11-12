@@ -1,22 +1,40 @@
 //! MSFS Pop Out Panel Manager - Rust port of
 //! <https://github.com/hawkeye-stan/msfs-popout-panel-manager> (AGPL-3.0).
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+// `cargo test` on Linux compiles the pure modules without the Windows-only `core`/`ui`
+// modules that consume them, so rustc's dead-code lint would flag items that are live
+// in the real (Windows) build. Production and `cargo check`/`clippy` still deny warnings.
+#![cfg_attr(test, allow(dead_code))]
 
+#[cfg(any(windows, test))]
 mod autostart;
 #[cfg(windows)]
 mod core;
+#[cfg(any(windows, test))]
 mod flight_sim;
+#[cfg(any(windows, test))]
 mod fps;
+#[cfg(any(windows, test))]
 mod hook_plan;
+#[cfg(any(windows, test))]
 mod keybinding;
+#[cfg(any(windows, test))]
 mod lod;
+#[cfg(any(windows, test))]
 mod logger;
+#[cfg(any(windows, test))]
 mod model;
+#[cfg(any(windows, test))]
 mod overlay_raster;
+#[cfg(any(windows, test))]
 mod simconnect;
+#[cfg(any(windows, test))]
 mod simdefs;
+#[cfg(any(windows, test))]
 mod status;
+#[cfg(any(windows, test))]
 mod storage;
+#[cfg(any(windows, test))]
 mod touch;
 #[cfg(windows)]
 mod ui;

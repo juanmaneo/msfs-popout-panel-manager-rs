@@ -158,11 +158,13 @@ mod tests {
 
     #[test]
     fn refocus_rules() {
-        let mut c = PanelConfig::default();
-        c.left = 100;
-        c.top = 100;
-        c.width = 400;
-        c.height = 300;
+        let c = PanelConfig {
+            left: 100,
+            top: 100,
+            width: 400,
+            height: 300,
+            ..Default::default()
+        };
         assert!(is_refocus_press_allowed(&c, 300, 300));
         assert!(!is_refocus_press_allowed(&c, 300, 120)); // title bar
         assert!(!is_refocus_press_allowed(&c, 105, 300)); // left border
@@ -175,16 +177,24 @@ mod tests {
     #[test]
     fn collects_only_popped_out_touch_panels() {
         let mut p = UserProfile::new("x");
-        let mut a = PanelConfig::default();
-        a.touch_enabled = true;
-        a.panel_handle = PanelHandle::Hwnd(5);
-        let mut b = PanelConfig::default();
-        b.touch_enabled = true; // not popped out
-        let mut c = PanelConfig::default();
-        c.touch_enabled = true;
-        c.panel_handle = PanelHandle::Failed;
-        let mut d = PanelConfig::default();
-        d.panel_handle = PanelHandle::Hwnd(6); // touch disabled
+        let a = PanelConfig {
+            touch_enabled: true,
+            panel_handle: PanelHandle::Hwnd(5),
+            ..Default::default()
+        };
+        let b = PanelConfig {
+            touch_enabled: true, // not popped out
+            ..Default::default()
+        };
+        let c = PanelConfig {
+            touch_enabled: true,
+            panel_handle: PanelHandle::Failed,
+            ..Default::default()
+        };
+        let d = PanelConfig {
+            panel_handle: PanelHandle::Hwnd(6), // touch disabled
+            ..Default::default()
+        };
         p.panel_configs = vec![a, b, c, d];
         assert_eq!(collect_touch_panels(&p).len(), 1);
     }

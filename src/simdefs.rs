@@ -263,7 +263,7 @@ mod tests {
         assert!(
             ActionEvent::ALL
                 .iter()
-                .all(|e| (e.clone() as u32) > EVT_FRAME)
+                .all(|e| (*e as u32) > EVT_FRAME)
         );
     }
 
