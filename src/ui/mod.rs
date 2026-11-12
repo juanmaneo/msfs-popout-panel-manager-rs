@@ -113,21 +113,46 @@ impl eframe::App for App {
         ctx.request_repaint_after(REPAINT_INTERVAL);
         self.sync_main_window(ctx);
 
-        // Show deferred viewports based on core state
+        // Show deferred viewports based on core state. The HUD bar / NumPad are driven by
+        // `ui.hud_bar_open` / `ui.num_pad_open` (set by the pop out workflow, cleared by
+        // their Close buttons and `sync_auxiliary_windows`).
         let core = self.core.clone();
-        core.read(|s| {
-            if s.active_profile()
-                .map_or(false, |p| p.profile_setting.hud_bar_config.is_enabled)
-            {
-                hud_bar::show(ctx, core.clone());
-            }
-
-            if s.active_profile()
-                .map_or(false, |p| p.profile_setting.num_pad_config.is_enabled)
-            {
-                num_pad::show(ctx, core.clone());
-            }
+        let (hud_open, pad_open, hud_panel, pad_panel) = core.read(|s| {
+            // Panel id when its window handle is not registered yet.
+            let unregistered = |t: crate::model::PanelType| {
+                s.active_profile().and_then(|p| {
+                    p.panel_configs
+                        .iter()
+                        .find(|c| c.panel_type == t && c.panel_handle.hwnd().is_none())
+                        .map(|c| c.id)
+                })
+            };
+            (
+                s.ui.hud_bar_open,
+                s.ui.num_pad_open,
+                unregistered(crate::model::PanelType::HudBarWindow),
+                unregistered(crate::model::PanelType::NumPadWindow),
+            )
         });
+
+        if hud_open {
+            hud_bar::show(ctx, core.clone());
+            // The pop out workflow waits for the window handle to position the HUD bar.
+            if let Some(id) = hud_panel {
+                if let Some(hwnd) = window::find_own_window(hud_bar::HUD_BAR_TITLE) {
+                    core.set_panel_window_handle(id, hwnd);
+                }
+            }
+        }
+
+        if pad_open {
+            num_pad::show(ctx, core.clone());
+            if let Some(id) = pad_panel {
+                if let Some(hwnd) = window::find_own_window(num_pad::NUM_PAD_TITLE) {
+                    core.set_panel_window_handle(id, hwnd);
+                }
+            }
+        }
 
         // The status window shows progress messages while a pop out / source edit runs
         // (upstream MessageWindow), and can also be opened manually from the header.

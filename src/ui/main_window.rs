@@ -22,6 +22,19 @@ impl MainWindow {
     pub fn show(&mut self, ui: &mut Ui, core: &Arc<Core>, on_status: &mut dyn FnMut()) {
         let snap = capture(core);
 
+        // Escape abandons an in-progress keystroke detection (shortcut or floating panel).
+        let detecting = core.read(|s| {
+            s.settings.keyboard_shortcut_setting.is_detecting_keystroke
+                || s.active_profile().is_some_and(|p| {
+                    p.panel_configs
+                        .iter()
+                        .any(|c| c.floating_panel.is_detecting_keystroke)
+                })
+        });
+        if detecting && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            core.cancel_detect_keystroke();
+        }
+
         Panel::top("header").show(ui, |ui| self.header(ui, &snap, on_status));
         Panel::bottom("action_bar").show(ui, |ui| action_bar(ui, core, &snap));
         Panel::left("profile_list")
