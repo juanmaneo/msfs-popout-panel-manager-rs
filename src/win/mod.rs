@@ -73,10 +73,32 @@ pub fn set_dpi_aware() {
 
 /// Simple modal error/info box (used before the GUI is available).
 pub fn message_box(title: &str, text: &str) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_OK, MessageBoxW};
     let (t, m) = (wide(title), wide(text));
     unsafe {
-        MessageBoxW(std::ptr::null_mut(), m.as_ptr(), t.as_ptr(), MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(
+            std::ptr::null_mut(),
+            m.as_ptr(),
+            t.as_ptr(),
+            MB_OK | MB_ICONINFORMATION,
+        );
+    }
+}
+
+/// Open a URL (or a file path) with the default Windows handler.
+pub fn open_externally(url: &str) {
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    let verb = wide("open");
+    let file = wide(url);
+    unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            file.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            1, // SW_SHOWNORMAL
+        );
     }
 }
 

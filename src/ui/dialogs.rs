@@ -7,8 +7,6 @@ use eframe::egui::{self, Context, Id, Key, Modal, RichText};
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub const UPSTREAM_URL: &str = "https://github.com/hawkeye-stan/msfs-popout-panel-manager";
-
 #[derive(Default)]
 pub struct Dialogs {
     add_profile: Option<AddProfile>,
@@ -180,13 +178,21 @@ impl Dialogs {
                         .strong()
                         .size(18.0),
                 );
-                ui.label("Rust port of MSFS Pop Out Panel Manager");
+                ui.label(RichText::new(format!(
+                    "Version {} (Rust port)",
+                    env!("CARGO_PKG_VERSION")
+                ))
+                .weak());
+                ui.add_space(6.0);
+
+                heading(ui, "Documentation");
+                help_link(ui, "Getting Started", "https://github.com/hawkeye-stan/msfs-popout-panel-manager/blob/master/GETTING_STARTED.md");
+                help_link(ui, "User Guide", "https://github.com/hawkeye-stan/msfs-popout-panel-manager#msfs-pop-out-panel-manager");
+                help_link(ui, "Download Latest GitHub", "https://github.com/hawkeye-stan/msfs-popout-panel-manager/releases");
+                help_link(ui, "Download Latest Flightsim.to", "https://flightsim.to/file/35759/msfs-pop-out-panel-manager");
                 ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.label("Upstream project:");
-                    ui.hyperlink(UPSTREAM_URL);
-                });
-                ui.add_space(8.0);
+
+                heading(ui, "Licence");
                 ui.label(
                     "This program is free software licensed under the GNU Affero General \
                      Public License v3.0 (AGPL-3.0-only). It is a derivative work of the \
@@ -205,6 +211,21 @@ impl Dialogs {
                 ui.label("SimConnect.dll must be located next to the executable.");
             });
         self.help_open = open;
+    }
+}
+
+/// A labelled hyperlink that opens with the default Windows browser.
+fn help_link(ui: &mut egui::Ui, label: &str, url: &str) {
+    if ui
+        .add(egui::Button::new(
+            RichText::new(label)
+                .color(ui.visuals().hyperlink_color)
+                .underline(),
+        ))
+        .on_hover_text(url)
+        .clicked()
+    {
+        crate::win::open_externally(url);
     }
 }
 
