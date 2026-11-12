@@ -142,7 +142,7 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
 
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                position_size_section(ui, core, profile_id, panel, editable, is_popped_out);
+                position_size_section(ui, core, snap, profile_id, panel, editable, is_popped_out);
             });
 
             ui.separator();
@@ -201,6 +201,7 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
 fn position_size_section(
     ui: &mut Ui,
     core: &Arc<Core>,
+    snap: &Snapshot,
     profile_id: Uuid,
     panel: &PanelConfig,
     editable: bool,
@@ -240,6 +241,59 @@ fn position_size_section(
                 core.set_camera_for_panel(id);
             }
         });
+
+        camera_picker(ui, core, snap, profile_id, panel, editable);
+    });
+}
+
+/// Fixed camera chooser shown while a custom panel source is being identified
+/// (upstream `PanelTargetField.xaml` combo + prev/next buttons).
+fn camera_picker(
+    ui: &mut Ui,
+    core: &Arc<Core>,
+    snap: &Snapshot,
+    profile_id: Uuid,
+    panel: &PanelConfig,
+    editable: bool,
+) {
+    if !panel.is_custom_pop_out() {
+        return;
+    }
+    let id = panel.id;
+    ui.add_enabled_ui(editable, |ui| {
+        ui.label("Camera:");
+        let configs = crate::core::fixed_camera_configs(snap.sim.instrument_count);
+        let selected = configs
+            .iter()
+            .find(|c| {
+                c.camera_type == panel.fixed_camera_config.camera_type
+                    && c.camera_index == panel.fixed_camera_config.camera_index
+            })
+            .cloned()
+            .unwrap_or_else(|| panel.fixed_camera_config.clone());
+        let mut chosen = selected.clone();
+        let combo = egui::ComboBox::from_id_salt(format!("camera_{id}"))
+            .selected_text(&selected.name)
+            .width(160.0);
+        combo.show_ui(ui, |ui| {
+            for cfg in &configs {
+                ui.selectable_value(&mut chosen, cfg.clone(), &cfg.name);
+            }
+        });
+        if chosen.camera_type != selected.camera_type
+            || chosen.camera_index != selected.camera_index
+        {
+            edit::panel(core, profile_id, id, |p| {
+                p.fixed_camera_config = chosen.clone()
+            });
+            // preview the new camera in the simulator
+            core.set_camera_for_panel(id);
+        }
+        ui.label(
+            RichText::new("Camera used to view the panel source during pop out")
+                .small()
+                .weak(),
+        );
     });
 }
 

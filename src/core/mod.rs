@@ -36,7 +36,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
-pub use config::PanelProp;
 pub use source::fixed_camera_configs;
 
 /// Which size/kind of progress window to show.
