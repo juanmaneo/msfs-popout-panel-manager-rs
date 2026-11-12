@@ -10,7 +10,7 @@
 //! * One "core loop" thread processes simulator and hook events, keeps the set of installed
 //!   hooks in sync with the state, and autosaves the data files.
 
-mod config;
+pub mod config;
 mod flightsim;
 mod popout;
 mod profile;

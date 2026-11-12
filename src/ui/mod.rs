@@ -24,7 +24,7 @@ use eframe::egui::{self, ViewportCommand, WindowLevel};
 use main_window::MainWindow;
 use std::sync::Arc;
 use std::time::Duration;
-use viewports::{hud_bar, num_pad};
+use viewports::{hud_bar, num_pad, status_window};
 
 pub const MAIN_TITLE: &str = "MSFS Pop Out Panel Manager";
 
@@ -38,6 +38,7 @@ struct App {
     app_hwnd_registered: bool,
     applied_always_on_top: Option<bool>,
     ui_frames: u32,
+    status_open: bool,
 }
 
 impl App {
@@ -48,6 +49,7 @@ impl App {
             app_hwnd_registered: false,
             applied_always_on_top: None,
             ui_frames: 0,
+            status_open: false,
         }
     }
 
@@ -102,6 +104,10 @@ impl eframe::App for App {
                 num_pad::show(ctx, core.clone());
             }
         });
+
+        if self.status_open {
+            status_window::show(ctx, core.clone());
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -117,7 +123,8 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
         }
 
-        self.main_window.show(ui, &self.core);
+        self.main_window
+            .show(ui, &self.core, &mut || self.status_open = !self.status_open);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {}

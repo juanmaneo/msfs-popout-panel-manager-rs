@@ -104,6 +104,35 @@ impl Core {
         self.write(|s| sort_profiles(&mut s.profiles));
     }
 
+    /// Select the profile after the active one (wraps around). Port of `MoveToNextProfile`.
+    pub fn move_to_next_profile(&self) {
+        self.step_profile(1);
+    }
+
+    /// Select the profile before the active one (wraps around). Port of `MoveToPreviousProfile`.
+    pub fn move_to_previous_profile(&self) {
+        self.step_profile(-1);
+    }
+
+    fn step_profile(&self, delta: isize) {
+        let next = self.write(|s| {
+            let len = s.profiles.len();
+            if len == 0 {
+                return None;
+            }
+            let idx = s
+                .active
+                .and_then(|a| s.profiles.iter().position(|p| p.id == a))
+                .map_or(0, |i| {
+                    (i as isize + delta).rem_euclid(len as isize) as usize
+                });
+            Some(s.profiles[idx].id)
+        });
+        if let Some(id) = next {
+            self.set_active_profile(id);
+        }
+    }
+
     /// Lock/unlock the active profile (locked profiles enforce their panel layout).
     pub fn toggle_lock(&self) {
         let locked = self.write(|s| {

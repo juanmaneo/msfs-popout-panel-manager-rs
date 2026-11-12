@@ -1,11 +1,18 @@
+//! One card per pop out panel (port of `PopOutPanelConfigCard.xaml`): name, position/size,
+//! display toggles, floating panel section and reorder/delete controls.
+
 use super::dialogs::Dialogs;
+use super::edit;
 use super::snapshot::Snapshot;
 use super::theme;
-use super::widgets::{heading, toggle_labeled};
+use super::widgets::{Icon, ResponseExt, heading, icon_button, toggle_labeled};
 use crate::core::Core;
-use crate::model::{PanelConfig, UserProfile};
+use crate::core::config::PanelProp;
+use crate::keybinding::display_binding;
+use crate::model::{PanelConfig, PanelType, UserProfile};
 use eframe::egui::{self, Align, Layout, RichText, ScrollArea, TextEdit, TextStyle, Ui};
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub fn show_list(
     ui: &mut Ui,
@@ -28,11 +35,24 @@ pub fn show_list(
         .max_height(list_height)
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            for panel in &profile.panel_configs {
-                show_panel_card(ui, core, snap, profile, panel, dialogs);
+            let count = profile.panel_configs.len();
+            for (index, panel) in profile.panel_configs.iter().enumerate() {
+                show_panel_card(ui, core, snap, profile, panel, index, count, dialogs);
                 ui.add_space(6.0);
             }
         });
+}
+
+/// Apply one changed persisted panel property to the core and notify the live window.
+fn set_panel_field(
+    core: &Arc<Core>,
+    profile_id: Uuid,
+    panel_id: Uuid,
+    prop: PanelProp,
+    change: impl FnOnce(&mut PanelConfig),
+) {
+    edit::panel(core, profile_id, panel_id, change);
+    core.panel_property_updated(panel_id, prop);
 }
 
 fn show_panel_card(
@@ -41,82 +61,78 @@ fn show_panel_card(
     snap: &Snapshot,
     profile: &UserProfile,
     panel: &PanelConfig,
+    index: usize,
+    count: usize,
     dialogs: &mut Dialogs,
 ) {
     let is_popped_out = profile.is_popped_out;
     let is_locked = profile.is_locked;
     let is_editing = profile.is_editing_panel_source;
     let is_selecting = snap.selecting_panel == Some(panel.id);
+    let editable = !is_locked && !is_editing && !is_selecting;
+    let id = panel.id;
+    let profile_id = profile.id;
 
     theme::card_frame(theme::CARD_FILL, egui::Color32::from_gray(70)).show(ui, |ui| {
         ui.set_width(ui.available_width());
 
-        // Header row with panel name and actions
+        // Header row: name, type, reorder + delete buttons
         ui.horizontal(|ui| {
-            // Panel name
             let mut name = panel.panel_name.clone();
             let response = ui.add_enabled(
-                !is_locked && !is_editing && !is_selecting,
+                editable && panel.is_custom_pop_out(),
                 TextEdit::singleline(&mut name)
                     .font(TextStyle::Button)
-                    .desired_width(200.0)
+                    .desired_width(220.0)
                     .hint_text("Panel name"),
             );
             if response.changed() {
-                core.write(|s| {
-                    if let Some(p) = s.active_profile_mut() {
-                        if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                            panel.panel_name = name;
-                        }
-                    }
+                set_panel_field(core, profile_id, id, PanelProp::PanelName, |p| {
+                    p.panel_name = name.clone()
                 });
             }
 
-            // Panel type indicator
             ui.colored_label(theme::ACCENT, format!("[{:?}]", panel.panel_type));
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                // Delete button
-                if ui.button("×").clicked() {
-                    dialogs.open_delete_panel(panel.id);
+                if icon_button(ui, Icon::Close, "Delete panel").clicked() {
+                    dialogs.open_delete_panel(id);
+                }
+                let down = icon_button(ui, Icon::Down, "Move panel down in the list");
+                if index + 1 < count {
+                    if down.clicked() {
+                        edit::profile(core, profile_id, |p| p.move_panel_down(id));
+                    }
+                } else {
+                    ui.add_enabled(false, egui::Button::new(""));
+                }
+                let up = icon_button(ui, Icon::Up, "Move panel up in the list");
+                if index > 0 {
+                    if up.clicked() {
+                        edit::profile(core, profile_id, |p| p.move_panel_up(id));
+                    }
+                } else {
+                    ui.add_enabled(false, egui::Button::new(""));
                 }
             });
         });
 
         ui.add_space(4.0);
 
-        // Panel properties - position and size
         ui.horizontal(|ui| {
-            // Left column
             ui.vertical(|ui| {
-                position_size_section(
-                    ui,
-                    core,
-                    panel,
-                    is_popped_out,
-                    is_locked,
-                    is_editing,
-                    is_selecting,
-                );
+                position_size_section(ui, core, profile_id, panel, editable, is_popped_out);
             });
 
             ui.separator();
 
-            // Right column
             ui.vertical(|ui| {
-                display_options_section(
-                    ui,
-                    core,
-                    panel,
-                    is_popped_out,
-                    is_locked,
-                    is_editing,
-                    is_selecting,
-                );
+                display_options_section(ui, core, snap, profile_id, panel, editable);
             });
         });
 
-        // Status indicators
+        floating_section(ui, core, profile_id, panel, editable);
+
         if is_selecting {
             ui.colored_label(theme::ACCENT, "Selecting panel source in game...");
         }
@@ -129,72 +145,43 @@ fn show_panel_card(
 fn position_size_section(
     ui: &mut Ui,
     core: &Arc<Core>,
+    profile_id: Uuid,
     panel: &PanelConfig,
-    _is_popped_out: bool,
-    is_locked: bool,
-    is_editing: bool,
-    is_selecting: bool,
+    editable: bool,
+    is_popped_out: bool,
 ) {
-    ui.add_enabled_ui(!is_locked && !is_editing && !is_selecting, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Left:");
-            let mut left = panel.left;
-            if ui.add(egui::DragValue::new(&mut left).speed(1.0)).changed() {
-                core.write(|s| {
-                    if let Some(p) = s.active_profile_mut() {
-                        if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                            panel.left = left;
-                        }
-                    }
-                });
-            }
-        });
+    let id = panel.id;
+    ui.add_enabled_ui(editable, |ui| {
+        let row = |ui: &mut Ui, label: &str, value: i32, prop: PanelProp, set: fn(&mut PanelConfig, i32)| {
+            ui.horizontal(|ui| {
+                ui.label(label);
+                let mut v = value;
+                if ui.add(egui::DragValue::new(&mut v).speed(1.0)).changed() {
+                    set_panel_field(core, profile_id, id, prop, |p| set(p, v));
+                }
+            });
+        };
+        row(ui, "Left:", panel.left, PanelProp::Left, |p, v| p.left = v);
+        row(ui, "Top:", panel.top, PanelProp::Top, |p, v| p.top = v);
+        row(ui, "Width:", panel.width, PanelProp::Width, |p, v| p.width = v);
+        row(ui, "Height:", panel.height, PanelProp::Height, |p, v| p.height = v);
 
+        // Move/resize mode + camera preview
         ui.horizontal(|ui| {
-            ui.label("Top:");
-            let mut top = panel.top;
-            if ui.add(egui::DragValue::new(&mut top).speed(1.0)).changed() {
-                core.write(|s| {
-                    if let Some(p) = s.active_profile_mut() {
-                        if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                            panel.top = top;
-                        }
-                    }
-                });
+            let mut moving = panel.is_editing_panel;
+            let r = toggle_labeled(ui, &mut moving, "Move/Resize")
+                .tip("Enable keyboard move/resize: arrow keys move the panel (Shift = 1px), Ctrl+arrows resize");
+            if r.changed() {
+                core.set_move_resize(id, moving);
             }
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Width:");
-            let mut width = panel.width;
-            if ui
-                .add(egui::DragValue::new(&mut width).speed(1.0))
-                .changed()
-            {
-                core.write(|s| {
-                    if let Some(p) = s.active_profile_mut() {
-                        if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                            panel.width = width;
-                        }
-                    }
-                });
-            }
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Height:");
-            let mut height = panel.height;
-            if ui
-                .add(egui::DragValue::new(&mut height).speed(1.0))
-                .changed()
-            {
-                core.write(|s| {
-                    if let Some(p) = s.active_profile_mut() {
-                        if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                            panel.height = height;
-                        }
-                    }
-                });
+            let cam = ui
+                .add_enabled(
+                    is_popped_out && panel.panel_type != PanelType::RefocusDisplay,
+                    egui::Button::new("Camera"),
+                )
+                .tip("Show the camera view of this panel in the simulator");
+            if cam.clicked() {
+                core.set_camera_for_panel(id);
             }
         });
     });
@@ -203,66 +190,125 @@ fn position_size_section(
 fn display_options_section(
     ui: &mut Ui,
     core: &Arc<Core>,
+    snap: &Snapshot,
+    profile_id: Uuid,
     panel: &PanelConfig,
-    _is_popped_out: bool,
-    is_locked: bool,
-    is_editing: bool,
-    is_selecting: bool,
+    editable: bool,
 ) {
-    ui.add_enabled_ui(!is_locked && !is_editing && !is_selecting, |ui| {
-        let mut always_on_top = panel.always_on_top;
-        if toggle_labeled(ui, &mut always_on_top, "Always on top").changed() {
-            core.write(|s| {
-                if let Some(p) = s.active_profile_mut() {
-                    if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                        panel.always_on_top = always_on_top;
-                    }
-                }
-            });
+    let id = panel.id;
+    ui.add_enabled_ui(editable, |ui| {
+        let toggle = |ui: &mut Ui,
+                          label: &str,
+                          value: bool,
+                          prop: PanelProp,
+                          set: fn(&mut PanelConfig, bool)| {
+            let mut v = value;
+            if toggle_labeled(ui, &mut v, label).changed() {
+                set_panel_field(core, profile_id, id, prop, |p| set(p, v));
+            }
+        };
+        let not_full_screen = !panel.full_screen;
+        ui.add_enabled_ui(not_full_screen, |ui| {
+            toggle(
+                ui,
+                "Always on top",
+                panel.always_on_top,
+                PanelProp::AlwaysOnTop,
+                |p, v| p.always_on_top = v,
+            );
+        });
+        toggle(
+            ui,
+            "Hide title bar",
+            panel.hide_titlebar,
+            PanelProp::HideTitlebar,
+            |p, v| p.hide_titlebar = v,
+        );
+        toggle(
+            ui,
+            "Full screen",
+            panel.full_screen,
+            PanelProp::FullScreen,
+            |p, v| p.set_full_screen(v),
+        );
+        if panel.is_touch_enable_panel() {
+            toggle(
+                ui,
+                "Touch enabled",
+                panel.touch_enabled,
+                PanelProp::TouchEnabled,
+                |p, v| p.set_touch_enabled(v),
+            );
         }
+        toggle(
+            ui,
+            "Auto game refocus",
+            panel.auto_game_refocus,
+            PanelProp::AutoGameRefocus,
+            |p, v| p.auto_game_refocus = v,
+        );
 
-        let mut hide_titlebar = panel.hide_titlebar;
-        if toggle_labeled(ui, &mut hide_titlebar, "Hide title bar").changed() {
-            core.write(|s| {
-                if let Some(p) = s.active_profile_mut() {
-                    if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                        panel.hide_titlebar = hide_titlebar;
-                    }
-                }
-            });
-        }
+        let _ = snap;
+    });
+}
 
-        let mut full_screen = panel.full_screen;
-        if toggle_labeled(ui, &mut full_screen, "Full screen").changed() {
-            core.write(|s| {
-                if let Some(p) = s.active_profile_mut() {
-                    if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                        panel.full_screen = full_screen;
-                    }
-                }
-            });
-        }
+/// Floating panel section (port of the `TglBtnAllowFloatPanel` block in the panel card).
+fn floating_section(
+    ui: &mut Ui,
+    core: &Arc<Core>,
+    profile_id: Uuid,
+    panel: &PanelConfig,
+    editable: bool,
+) {
+    let id = panel.id;
+    ui.add_space(4.0);
+    ui.add_enabled_ui(editable, |ui| {
+        ui.horizontal(|ui| {
+            let mut enabled = panel.floating_panel.is_enabled;
+            if toggle_labeled(ui, &mut enabled, "Floating Panel Toggle")
+                .tip("Set the pop out panel to float above other windows")
+                .changed()
+            {
+                edit::panel(core, profile_id, id, |p| {
+                    p.floating_panel.set_enabled(enabled)
+                });
+            }
 
-        let mut touch_enabled = panel.touch_enabled;
-        if toggle_labeled(ui, &mut touch_enabled, "Touch enabled").changed() {
-            core.write(|s| {
-                if let Some(p) = s.active_profile_mut() {
-                    if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                        panel.touch_enabled = touch_enabled;
+            if panel.floating_panel.is_enabled {
+                ui.label("Keyboard Binding:");
+                if panel.floating_panel.is_detecting_keystroke {
+                    ui.colored_label(theme::ACCENT, "Scanning...");
+                } else {
+                    let text = panel
+                        .floating_panel
+                        .keyboard_binding
+                        .as_deref()
+                        .map(display_binding)
+                        .unwrap_or_else(|| "(none)".to_string());
+                    ui.label(RichText::new(text).monospace());
+                }
+                if ui
+                    .add_enabled(
+                        !panel.floating_panel.is_detecting_keystroke,
+                        egui::Button::new("Detect"),
+                    )
+                    .tip("Press the key combination that toggles this floating panel")
+                    .clicked()
+                {
+                    core.start_detect_keystroke(id);
+                }
+                if panel.floating_panel.has_keyboard_binding() {
+                    let mut hidden = panel.floating_panel.is_hidden_on_start;
+                    if toggle_labeled(ui, &mut hidden, "Hide on Start")
+                        .tip("Hide the panel when pop out initially")
+                        .changed()
+                    {
+                        edit::panel(core, profile_id, id, |p| {
+                            p.floating_panel.is_hidden_on_start = hidden
+                        });
                     }
                 }
-            });
-        }
-
-        let mut auto_game_refocus = panel.auto_game_refocus;
-        if toggle_labeled(ui, &mut auto_game_refocus, "Auto game refocus").changed() {
-            core.write(|s| {
-                if let Some(p) = s.active_profile_mut() {
-                    if let Some(panel) = p.panel_configs.iter_mut().find(|p| p.id == panel.id) {
-                        panel.auto_game_refocus = auto_game_refocus;
-                    }
-                }
-            });
-        }
+            }
+        });
     });
 }

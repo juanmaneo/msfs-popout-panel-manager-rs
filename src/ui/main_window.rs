@@ -18,10 +18,10 @@ pub struct MainWindow {
 }
 
 impl MainWindow {
-    pub fn show(&mut self, ui: &mut Ui, core: &Arc<Core>) {
+    pub fn show(&mut self, ui: &mut Ui, core: &Arc<Core>, on_status: &mut dyn FnMut()) {
         let snap = capture(core);
 
-        Panel::top("header").show(ui, |ui| self.header(ui, &snap));
+        Panel::top("header").show(ui, |ui| self.header(ui, &snap, on_status));
         Panel::bottom("action_bar").show(ui, |ui| action_bar(ui, core, &snap));
         Panel::left("profile_list")
             .resizable(false)
@@ -34,7 +34,7 @@ impl MainWindow {
         self.preferences.show(&ctx, core, &snap);
     }
 
-    fn header(&mut self, ui: &mut Ui, snap: &Snapshot) {
+    fn header(&mut self, ui: &mut Ui, snap: &Snapshot, on_status: &mut dyn FnMut()) {
         ui.horizontal(|ui| {
             let (color, state) = if snap.sim.connected {
                 (theme::SUCCESS, "Connected")
@@ -61,6 +61,9 @@ impl MainWindow {
             }
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui.button("Status").clicked() {
+                    on_status();
+                }
                 if ui.button("Help").clicked() {
                     self.dialogs.toggle_help();
                 }
@@ -112,6 +115,19 @@ impl MainWindow {
         ui.add_space(4.0);
         ui.add_enabled_ui(!snap.pop_out_in_progress, |ui| {
             ui.horizontal(|ui| {
+                let prev = ui
+                    .add_enabled(snap.profiles.len() > 1, Button::new("◀"))
+                    .tip("Previous profile");
+                if prev.clicked() {
+                    core.move_to_previous_profile();
+                }
+                let next = ui
+                    .add_enabled(snap.profiles.len() > 1, Button::new("▶"))
+                    .tip("Next profile");
+                if next.clicked() {
+                    core.move_to_next_profile();
+                }
+                ui.separator();
                 if ui
                     .button("Add profile")
                     .tip("Add a new aircraft profile")
