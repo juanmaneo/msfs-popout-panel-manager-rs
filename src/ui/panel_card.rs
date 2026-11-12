@@ -37,7 +37,15 @@ pub fn show_list(
         .show(ui, |ui| {
             let count = profile.panel_configs.len();
             for (index, panel) in profile.panel_configs.iter().enumerate() {
-                show_panel_card(ui, core, snap, profile, panel, index, count, dialogs);
+                let mut ctx = CardCtx {
+                    core,
+                    snap,
+                    profile,
+                    index,
+                    count,
+                    dialogs,
+                };
+                show_panel_card(ui, &mut ctx, panel);
                 ui.add_space(6.0);
             }
         });
@@ -55,16 +63,23 @@ fn set_panel_field(
     core.panel_property_updated(panel_id, prop);
 }
 
-fn show_panel_card(
-    ui: &mut Ui,
-    core: &Arc<Core>,
-    snap: &Snapshot,
-    profile: &UserProfile,
-    panel: &PanelConfig,
+/// Everything a panel card needs besides the panel itself.
+struct CardCtx<'a> {
+    core: &'a Arc<Core>,
+    snap: &'a Snapshot,
+    profile: &'a UserProfile,
     index: usize,
     count: usize,
-    dialogs: &mut Dialogs,
-) {
+    dialogs: &'a mut Dialogs,
+}
+
+fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
+    let core = ctx.core;
+    let profile = ctx.profile;
+    let snap = ctx.snap;
+    let dialogs = &mut *ctx.dialogs;
+    let index = ctx.index;
+    let count = ctx.count;
     let is_popped_out = profile.is_popped_out;
     let is_locked = profile.is_locked;
     let is_editing = profile.is_editing_panel_source;

@@ -37,6 +37,7 @@ struct App {
     main_window: MainWindow,
     app_hwnd_registered: bool,
     applied_always_on_top: Option<bool>,
+    applied_minimize_to_tray: bool,
     ui_frames: u32,
     status_open: bool,
 }
@@ -48,6 +49,7 @@ impl App {
             main_window: MainWindow::default(),
             app_hwnd_registered: false,
             applied_always_on_top: None,
+            applied_minimize_to_tray: false,
             ui_frames: 0,
             status_open: false,
         }
@@ -55,15 +57,37 @@ impl App {
 
     /// Everything that must keep working while the main window is minimized (no `ui` pass).
     fn sync_main_window(&mut self, ctx: &egui::Context) {
-        let (always_on_top, exit_requested) = self.core.read(|s| {
-            (
-                s.settings.general_setting.always_on_top,
-                s.ui.exit_requested,
-            )
-        });
+        let (always_on_top, exit_requested, minimize_to_tray, start_minimized) =
+            self.core.read(|s| {
+                (
+                    s.settings.general_setting.always_on_top,
+                    s.ui.exit_requested,
+                    s.settings.general_setting.minimize_to_tray,
+                    s.settings.general_setting.start_minimized,
+                )
+            });
 
         if exit_requested {
             ctx.send_viewport_cmd(ViewportCommand::Close);
+        }
+
+        // "Minimize to tray": while minimized the window is hidden from the taskbar
+        // (the tray icon itself is not ported; the app keeps running in `logic`).
+        let minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
+        if minimize_to_tray && minimized != self.applied_minimize_to_tray {
+            self.applied_minimize_to_tray = minimized;
+            if minimized {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+            } else {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+            }
+        }
+        // "Start minimized": hide right after startup so the window never flashes.
+        if start_minimized
+            && !self.applied_minimize_to_tray
+            && self.ui_frames < START_MINIMIZED_FRAME
+        {
+            ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
         }
 
         if !self.app_hwnd_registered {
@@ -118,13 +142,6 @@ impl eframe::App for App {
         ctx.request_repaint_after(REPAINT_INTERVAL);
 
         self.ui_frames = self.ui_frames.saturating_add(1);
-        if self.ui_frames == START_MINIMIZED_FRAME
-            && self
-                .core
-                .read(|s| s.settings.general_setting.start_minimized)
-        {
-            ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
-        }
 
         self.main_window
             .show(ui, &self.core, &mut || self.status_open = !self.status_open);

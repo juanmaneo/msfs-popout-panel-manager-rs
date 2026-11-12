@@ -11,7 +11,9 @@ use eframe::egui::{self, Context, DragValue, RichText, ScrollArea, TextEdit, Tex
 use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 enum Tab {
+    #[default]
     General,
     AutoPopOut,
     PopOut,
@@ -57,11 +59,7 @@ pub struct Preferences {
     tab: Tab,
 }
 
-impl Default for Tab {
-    fn default() -> Self {
-        Tab::General
-    }
-}
+
 
 impl Preferences {
     pub fn open(&mut self) {

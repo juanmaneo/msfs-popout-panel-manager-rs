@@ -69,7 +69,7 @@ impl Core {
                 let bound = s
                     .profiles
                     .iter()
-                    .any(|p| p.aircraft_bindings.iter().any(|b| *b == aircraft));
+                    .any(|p| p.aircraft_bindings.contains(&aircraft));
                 if !bound {
                     if let Some(p) = s.active_profile_mut() {
                         p.aircraft_bindings.push(aircraft);
