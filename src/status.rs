@@ -80,9 +80,16 @@ impl StatusLog {
         self.push("  (FAILED)", StatusMessageType::Failure, true);
     }
 
-    pub fn remove_last(&self) {
+    /// Drop the trailing `(Executing)` marker. Does nothing when the log is disabled (and
+    /// nothing was pushed), so it can never delete a message that belongs to an earlier step.
+    fn remove_executing(&self) {
         self.with(|i| {
-            i.messages.pop();
+            if i.messages
+                .last()
+                .is_some_and(|m| m.kind == StatusMessageType::Executing)
+            {
+                i.messages.pop();
+            }
         });
     }
 
@@ -106,7 +113,7 @@ impl StatusLog {
         self.write(&message, StatusMessageType::Info);
         self.write_executing();
         let ok = f();
-        self.remove_last();
+        self.remove_executing();
         if ok {
             self.write_ok();
         } else {
@@ -141,6 +148,18 @@ mod tests {
         assert_eq!(m[2].text, "          - Failing");
         assert_eq!(m[3].kind, StatusMessageType::Failure);
         assert!(m[3].new_line);
+    }
+
+    #[test]
+    fn disabled_step_keeps_earlier_messages() {
+        let log = StatusLog::new();
+        log.set_enabled(true);
+        log.write_line("first", StatusMessageType::Info);
+        log.set_enabled(false);
+        assert!(log.step("hidden", false, || true));
+        let (_, m) = log.snapshot();
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].text, "first");
     }
 
     #[test]
