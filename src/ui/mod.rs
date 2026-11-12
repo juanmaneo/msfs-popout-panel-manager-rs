@@ -39,7 +39,6 @@ struct App {
     applied_always_on_top: Option<bool>,
     applied_minimize_to_tray: bool,
     ui_frames: u32,
-    status_open: bool,
     hud_timer: Arc<Mutex<hud_bar::HudTimer>>,
 }
 
@@ -52,7 +51,6 @@ impl App {
             applied_always_on_top: None,
             applied_minimize_to_tray: false,
             ui_frames: 0,
-            status_open: false,
             hud_timer: Arc::default(),
         }
     }
@@ -158,7 +156,7 @@ impl eframe::App for App {
 
         // The status window shows progress messages while a pop out / source edit runs
         // (upstream MessageWindow), and can also be opened manually from the header.
-        let show_status = self.status_open || core.read(|s| s.ui.message.is_some());
+        let show_status = core.read(|s| s.ui.status_open || s.ui.message.is_some());
         if show_status {
             status_window::show(ctx, core.clone());
         }
@@ -171,7 +169,7 @@ impl eframe::App for App {
         self.ui_frames = self.ui_frames.saturating_add(1);
 
         self.main_window
-            .show(ui, &self.core, &mut || self.status_open = !self.status_open);
+            .show(ui, &self.core, &mut || self.core.toggle_status_window());
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {}

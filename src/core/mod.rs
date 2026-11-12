@@ -59,6 +59,8 @@ pub enum KeystrokeTarget {
 pub struct UiState {
     pub hud_bar_open: bool,
     pub num_pad_open: bool,
+    /// The status window was opened from the header (closed by its Close button).
+    pub status_open: bool,
     pub message: Option<MessageKind>,
     pub keystroke: Option<KeystrokeTarget>,
     /// The application should close (simulator exited with auto close enabled).

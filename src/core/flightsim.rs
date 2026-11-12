@@ -11,8 +11,8 @@ use crate::simdefs::{ActionEvent, HudProp, LodData, RequiredData, WritableVar};
 use crate::win::hooks::HookCmd;
 use crate::win::process::{self, ProcessMemory};
 use crate::win::window;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 fn sleep(ms: u64) {
@@ -642,6 +642,19 @@ impl Core {
 
     pub fn close_num_pad(&self) {
         self.write(|s| s.ui.num_pad_open = false);
+    }
+
+    /// Header "Status" button: show or hide the status window.
+    pub fn toggle_status_window(&self) {
+        self.write(|s| s.ui.status_open = !s.ui.status_open);
+    }
+
+    /// Close the status window, including any pop out message it is showing.
+    pub fn close_status_window(&self) {
+        self.write(|s| {
+            s.ui.status_open = false;
+            s.ui.message = None;
+        });
     }
 
     /// Keep the auxiliary windows consistent with the profile (called from the core loop).

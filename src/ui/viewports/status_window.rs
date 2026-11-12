@@ -2,7 +2,7 @@
 //! shows the `StatusLog` messages with per-level colors plus a Clear button.
 
 use crate::core::Core;
-use crate::status::{StatusMessage, StatusMessageType};
+use crate::status::StatusMessageType;
 use eframe::egui::{self, Color32, RichText, ScrollArea, TextStyle};
 use std::sync::Arc;
 
@@ -60,7 +60,7 @@ pub fn show(ctx: &egui::Context, core: Arc<Core>) {
                     if messages.is_empty() {
                         ui.label(RichText::new("No status messages yet").weak());
                     }
-                    for msg in render_lines(&messages) {
+                    for msg in messages {
                         ui.label(
                             RichText::new(msg.text)
                                 .text_style(TextStyle::Monospace)
@@ -75,14 +75,9 @@ pub fn show(ctx: &egui::Context, core: Arc<Core>) {
             });
         });
 
-        if close_requested.get() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        if close_requested.get() || ctx.input(|i| i.viewport().close_requested()) {
+            core.close_status_window();
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(250));
     });
-}
-
-/// Flatten the message log into display lines (`new_line` starts a new egui label).
-fn render_lines(messages: &[StatusMessage]) -> Vec<StatusMessage> {
-    messages.to_vec()
 }
