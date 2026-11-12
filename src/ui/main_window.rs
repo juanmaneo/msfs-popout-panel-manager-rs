@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub struct MainWindow {
     dialogs: Dialogs,
     preferences: Preferences,
+    profile_filter: String,
 }
 
 impl MainWindow {
@@ -83,6 +84,19 @@ impl MainWindow {
     }
 
     fn profile_list(&mut self, ui: &mut Ui, core: &Arc<Core>, snap: &Snapshot) {
+        // Search box (upstream "Find an aircraft profile" auto-complete)
+        ui.horizontal(|ui| {
+            let mut query = self.profile_filter.clone();
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut query)
+                    .desired_width(ui.available_width() - 10.0)
+                    .hint_text("Search profile..."),
+            );
+            if response.changed() {
+                self.profile_filter = query;
+            }
+        });
+        ui.add_space(4.0);
         heading(ui, "Aircraft Profiles");
         ui.add_space(4.0);
 
@@ -94,7 +108,11 @@ impl MainWindow {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     let active = snap.active.as_ref().map(|p| p.id);
+                    let filter = self.profile_filter.trim().to_lowercase();
                     for (id, name) in &snap.profiles {
+                        if !filter.is_empty() && !name.to_lowercase().contains(&filter) {
+                            continue;
+                        }
                         let selected = Some(*id) == active;
                         let label = if name.trim().is_empty() {
                             "(unnamed)"

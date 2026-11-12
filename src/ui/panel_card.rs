@@ -73,7 +73,13 @@ fn show_panel_card(
     let id = panel.id;
     let profile_id = profile.id;
 
-    theme::card_frame(theme::CARD_FILL, egui::Color32::from_gray(70)).show(ui, |ui| {
+    // Upstream colors the card border red/green based on the pop out result.
+    let border = match panel.is_pop_out_success() {
+        Some(false) => theme::ERROR,
+        Some(true) => theme::SUCCESS,
+        None => egui::Color32::from_gray(70),
+    };
+    theme::card_frame(theme::CARD_FILL, border).show(ui, |ui| {
         ui.set_width(ui.available_width());
 
         // Header row: name, type, reorder + delete buttons
@@ -134,7 +140,42 @@ fn show_panel_card(
         floating_section(ui, core, profile_id, panel, editable);
 
         if is_selecting {
-            ui.colored_label(theme::ACCENT, "Selecting panel source in game...");
+            ui.horizontal(|ui| {
+                ui.colored_label(
+                    theme::ACCENT,
+                    "Click the panel source location in the game...",
+                );
+                if ui.button("Cancel").clicked() {
+                    core.cancel_panel_selection();
+                }
+            });
+        } else if panel.is_custom_pop_out() && !panel.has_panel_source() && editable {
+            ui.horizontal(|ui| {
+                ui.colored_label(theme::NAVAJO_WHITE, "Panel source not identified.");
+                if ui
+                    .add_enabled(snap.sim.in_cockpit, egui::Button::new("Identify source"))
+                    .tip("Click the panel location in the cockpit to set the panel source")
+                    .clicked()
+                {
+                    core.start_panel_selection(id, profile.is_used_legacy_camera_system);
+                }
+            });
+        }
+        if panel.has_panel_source() {
+            ui.label(
+                RichText::new(format!("Source: {}", panel.source_coordinate_text()))
+                    .small()
+                    .weak(),
+            );
+        }
+        if panel.is_pop_out_success() == Some(false) {
+            ui.colored_label(
+                theme::INDIAN_RED,
+                "Pop out failed for this panel. Check the panel source location.",
+            );
+        }
+        if !panel.has_panel_source() && panel.is_custom_pop_out() {
+            ui.colored_label(theme::NAVAJO_WHITE, "Please identify panel source");
         }
         if panel.floating_panel.is_enabled {
             ui.colored_label(theme::LIME_GREEN, "Floating panel enabled");
@@ -198,10 +239,10 @@ fn display_options_section(
     let id = panel.id;
     ui.add_enabled_ui(editable, |ui| {
         let toggle = |ui: &mut Ui,
-                          label: &str,
-                          value: bool,
-                          prop: PanelProp,
-                          set: fn(&mut PanelConfig, bool)| {
+                      label: &str,
+                      value: bool,
+                      prop: PanelProp,
+                      set: fn(&mut PanelConfig, bool)| {
             let mut v = value;
             if toggle_labeled(ui, &mut v, label).changed() {
                 set_panel_field(core, profile_id, id, prop, |p| set(p, v));

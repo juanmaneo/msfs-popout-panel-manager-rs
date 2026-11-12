@@ -105,7 +105,10 @@ impl eframe::App for App {
             }
         });
 
-        if self.status_open {
+        // The status window shows progress messages while a pop out / source edit runs
+        // (upstream MessageWindow), and can also be opened manually from the header.
+        let show_status = self.status_open || core.read(|s| s.ui.message.is_some());
+        if show_status {
             status_window::show(ctx, core.clone());
         }
     }
