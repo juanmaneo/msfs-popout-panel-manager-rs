@@ -3,8 +3,8 @@
 //! All synthesized events carry [`INJECT_TAG`] in `dwExtraInfo` so our own low-level hooks
 //! can recognise (and ignore) them.
 
-use super::window;
 use super::Rect;
+use super::window;
 use std::time::Duration;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
@@ -192,9 +192,9 @@ pub fn toggle_full_screen_panel(hwnd: isize) {
     sleep(200);
 }
 
-/// Map a virtual NumPad button name to the virtual key it sends.
-pub fn numpad_vk(name: &str) -> u16 {
-    match name.to_uppercase().as_str() {
+/// Map a virtual NumPad button name (as sent by the NumPad window) to the virtual key it sends.
+pub fn numpad_vk(name: &str) -> Option<u16> {
+    Some(match name.to_uppercase().as_str() {
         "0" => 0x60,
         "1" => 0x61,
         "2" => 0x62,
@@ -209,16 +209,19 @@ pub fn numpad_vk(name: &str) -> u16 {
         "SUBTRACT" => 0x6D,
         "DIVIDE" => 0x6F,
         "MULTIPLY" => 0x6A,
+        "DECIMAL" => 0x6E,
         "TAB" => VK_TAB,
         "ENTER" => VK_RETURN,
-        _ => 0x6E, // decimal
-    }
+        _ => return None,
+    })
 }
 
 pub fn numpad_click(sim_hwnd: isize, name: &str) {
+    let Some(vk) = numpad_vk(name) else {
+        return;
+    };
     window::set_foreground(sim_hwnd);
     sleep(200);
-    let vk = numpad_vk(name);
     key_down(vk);
     sleep(200);
     key_up(vk);
@@ -252,9 +255,13 @@ mod tests {
 
     #[test]
     fn numpad_mapping() {
-        assert_eq!(numpad_vk("7"), 0x67);
-        assert_eq!(numpad_vk("Enter"), 0x0D);
-        assert_eq!(numpad_vk("Decimal"), 0x6E);
-        assert_eq!(numpad_vk("Add"), 0x6B);
+        assert_eq!(numpad_vk("7"), Some(0x67));
+        assert_eq!(numpad_vk("Enter"), Some(0x0D));
+        assert_eq!(numpad_vk("Decimal"), Some(0x6E));
+        assert_eq!(numpad_vk("Add"), Some(0x6B));
+        assert_eq!(numpad_vk("Subtract"), Some(0x6D));
+        assert_eq!(numpad_vk("Divide"), Some(0x6F));
+        assert_eq!(numpad_vk("Multiply"), Some(0x6A));
+        assert_eq!(numpad_vk("/"), None);
     }
 }

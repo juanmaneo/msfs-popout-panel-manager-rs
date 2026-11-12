@@ -8,27 +8,6 @@ use std::sync::Arc;
 
 pub const NUM_PAD_TITLE: &str = "Virtual NumPad - POPM";
 
-/// One key: label plus the virtual key name sent to the core.
-const KEYS: &[(&str, &str)] = &[
-    ("Tab", "Tab"),
-    ("/", "/"),
-    ("*", "*"),
-    ("-", "-"),
-    ("7", "7"),
-    ("8", "8"),
-    ("9", "9"),
-    ("+", "+"),
-    ("4", "4"),
-    ("5", "5"),
-    ("6", "6"),
-    ("1", "1"),
-    ("2", "2"),
-    ("3", "3"),
-    ("Ent", "Enter"),
-    ("0", "0"),
-    (".", "."),
-];
-
 pub fn show(ctx: &egui::Context, core: Arc<Core>) {
     let viewport_id = egui::ViewportId::from_hash_of(NUM_PAD_TITLE);
     let builder = egui::ViewportBuilder::default()
@@ -76,40 +55,45 @@ pub fn show(ctx: &egui::Context, core: Arc<Core>) {
                 .spacing([6.0, 6.0])
                 .show(ui, |ui| {
                     // Row 1: Tab / * -
-                    for (label, name) in &KEYS[0..4] {
-                        if key(ui, &core, label, name, cell).clicked() {
+                    for (label, name) in [
+                        ("Tab", "Tab"),
+                        ("/", "Divide"),
+                        ("*", "Multiply"),
+                        ("-", "Subtract"),
+                    ] {
+                        if key(ui, label, cell).clicked() {
                             core.num_pad_click(name);
                         }
                     }
                     ui.end_row();
 
                     // Row 2: 7 8 9 + (tall)
-                    for (label, name) in &KEYS[4..7] {
-                        if key(ui, &core, label, name, cell).clicked() {
-                            core.num_pad_click(name);
+                    for digit in ["7", "8", "9"] {
+                        if key(ui, digit, cell).clicked() {
+                            core.num_pad_click(digit);
                         }
                     }
-                    if key(ui, &core, "+", "+", tall).clicked() {
-                        core.num_pad_click("+");
+                    if key(ui, "+", tall).clicked() {
+                        core.num_pad_click("Add");
                     }
                     ui.end_row();
 
                     // Row 3: 4 5 6 (+ continues)
-                    for (label, name) in &KEYS[8..11] {
-                        if key(ui, &core, label, name, cell).clicked() {
-                            core.num_pad_click(name);
+                    for digit in ["4", "5", "6"] {
+                        if key(ui, digit, cell).clicked() {
+                            core.num_pad_click(digit);
                         }
                     }
                     ui.label(""); // cell occupied by the tall "+" button
                     ui.end_row();
 
                     // Row 4: 1 2 3 Ent (tall)
-                    for (label, name) in &KEYS[11..14] {
-                        if key(ui, &core, label, name, cell).clicked() {
-                            core.num_pad_click(name);
+                    for digit in ["1", "2", "3"] {
+                        if key(ui, digit, cell).clicked() {
+                            core.num_pad_click(digit);
                         }
                     }
-                    if key(ui, &core, "Ent", "Enter", tall).clicked() {
+                    if key(ui, "Ent", tall).clicked() {
                         core.num_pad_click("Enter");
                     }
                     ui.end_row();
@@ -124,8 +108,8 @@ pub fn show(ctx: &egui::Context, core: Arc<Core>) {
                     {
                         core.num_pad_click("0");
                     }
-                    if key(ui, &core, ".", ".", cell).clicked() {
-                        core.num_pad_click(".");
+                    if key(ui, ".", cell).clicked() {
+                        core.num_pad_click("Decimal");
                     }
                     ui.label(""); // cell occupied by the tall "Ent" button
                     ui.end_row();
@@ -136,12 +120,6 @@ pub fn show(ctx: &egui::Context, core: Arc<Core>) {
     });
 }
 
-fn key(
-    ui: &mut Ui,
-    _core: &Arc<Core>,
-    label: &str,
-    _name: &str,
-    size: egui::Vec2,
-) -> egui::Response {
+fn key(ui: &mut Ui, label: &str, size: egui::Vec2) -> egui::Response {
     ui.add_sized(size, Button::new(RichText::new(label).size(16.0)))
 }
