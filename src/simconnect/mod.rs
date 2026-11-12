@@ -9,7 +9,7 @@ pub mod ffi;
 use crate::model::HudBarType;
 use crate::simdefs::*;
 use ffi::{Connection, Dispatch, Recv, SimConnectLib};
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::{Duration, Instant};
 
 const APP_NAME: &str = "MSFS Pop Out Panel Manager";
@@ -64,13 +64,12 @@ impl SimHandle {
     }
 }
 
-pub fn spawn(emit: impl Fn(SimEvent) + Send + 'static) -> SimHandle {
+pub fn spawn(emit: impl Fn(SimEvent) + Send + 'static) -> std::io::Result<SimHandle> {
     let (tx, rx) = channel();
     std::thread::Builder::new()
         .name("popm-simconnect".into())
-        .spawn(move || run(rx, emit))
-        .expect("spawn simconnect thread");
-    SimHandle { tx }
+        .spawn(move || run(rx, emit))?;
+    Ok(SimHandle { tx })
 }
 
 /// What the polling loop should do after a received message.
@@ -93,13 +92,19 @@ fn translate(r: Recv, hud_props: &[HudProp]) -> Translated {
         Recv::SystemState { request_id, text } if request_id == REQ_SYSTEM_STATE_AIRCRAFT_PATH => {
             Translated::Event(SimEvent::AircraftPath(text))
         }
-        Recv::EventFrame { fps } => Translated::Event(SimEvent::Frame(crate::flight_sim::to_i32(fps as f64))),
+        Recv::EventFrame { fps } => {
+            Translated::Event(SimEvent::Frame(crate::flight_sim::to_i32(fps as f64)))
+        }
         Recv::SimObjectData { request_id, values } => match request_id {
             REQ_REQUIRED => RequiredData::from_values(&values)
                 .map(|d| Translated::Event(SimEvent::Required(d)))
                 .unwrap_or(Translated::Ignore),
             REQ_HUDBAR => {
-                let pairs: Vec<(HudProp, f64)> = hud_props.iter().copied().zip(values.iter().copied()).collect();
+                let pairs: Vec<(HudProp, f64)> = hud_props
+                    .iter()
+                    .copied()
+                    .zip(values.iter().copied())
+                    .collect();
                 if pairs.is_empty() {
                     Translated::Ignore
                 } else {
@@ -145,9 +150,11 @@ fn run(rx: Receiver<SimCmd>, emit: impl Fn(SimEvent)) {
             }
         }
 
-        let conn = lib.as_ref().and_then(|l| Connection::open(l, APP_NAME).ok());
-        if let Some(conn) = conn {
-            if setup(&conn).is_ok() {
+        let conn = lib
+            .as_ref()
+            .and_then(|l| Connection::open(l, APP_NAME).ok());
+        if let Some(conn) = conn
+            && setup(&conn).is_ok() {
                 emit(SimEvent::Connected);
                 let end = session(&conn, &rx, &mut desired, &emit);
                 emit(SimEvent::Disconnected);
@@ -156,7 +163,6 @@ fn run(rx: Receiver<SimCmd>, emit: impl Fn(SimEvent)) {
                     return;
                 }
             }
-        }
 
         if idle(&rx, &mut desired, CONNECT_RETRY) {
             return;
@@ -231,7 +237,12 @@ fn apply_lod(c: &Connection, on: bool) {
     }
 }
 
-fn session(c: &Connection, rx: &Receiver<SimCmd>, desired: &mut Desired, emit: &impl Fn(SimEvent)) -> SessionEnd {
+fn session(
+    c: &Connection,
+    rx: &Receiver<SimCmd>,
+    desired: &mut Desired,
+    emit: &impl Fn(SimEvent),
+) -> SessionEnd {
     let mut hud_props = apply_hud(c, desired.hud);
     apply_lod(c, desired.lod);
 
@@ -242,7 +253,9 @@ fn session(c: &Connection, rx: &Receiver<SimCmd>, desired: &mut Desired, emit: &
 
     loop {
         match rx.recv_timeout(TICK) {
-            Ok(SimCmd::Shutdown) | Err(RecvTimeoutError::Disconnected) => return SessionEnd::Shutdown,
+            Ok(SimCmd::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
+                return SessionEnd::Shutdown;
+            }
             Ok(SimCmd::SetData(var, v)) => {
                 if let Err(hr) = c.set_data_f64(var.definition_id(), v) {
                     log::error!("SimConnect: unable to set {var:?}: 0x{hr:08X}");
@@ -250,7 +263,10 @@ fn session(c: &Connection, rx: &Receiver<SimCmd>, desired: &mut Desired, emit: &
             }
             Ok(SimCmd::Transmit(evt, data)) => {
                 if let Err(hr) = c.transmit_client_event(evt as u32, data) {
-                    log::error!("SimConnect: unable to transmit {}: 0x{hr:08X}", evt.sim_name());
+                    log::error!(
+                        "SimConnect: unable to transmit {}: 0x{hr:08X}",
+                        evt.sim_name()
+                    );
                 }
             }
             Ok(SimCmd::HudBar(t)) => {
@@ -270,7 +286,8 @@ fn session(c: &Connection, rx: &Receiver<SimCmd>, desired: &mut Desired, emit: &
         loop {
             match c.next_dispatch() {
                 Ok(Dispatch::Message(ptr, size)) => {
-                    let bytes = unsafe { std::slice::from_raw_parts(ptr as *const u8, size as usize) };
+                    let bytes =
+                        unsafe { std::slice::from_raw_parts(ptr as *const u8, size as usize) };
                     match translate(ffi::parse_recv(bytes), &hud_props) {
                         Translated::Event(e) => emit(e),
                         Translated::Lost => return SessionEnd::Lost,
@@ -292,7 +309,10 @@ fn session(c: &Connection, rx: &Receiver<SimCmd>, desired: &mut Desired, emit: &
                 return SessionEnd::Lost;
             }
         }
-        if desired.hud.is_some() && !hud_props.is_empty() && now.duration_since(last_hud) >= HUDBAR_INTERVAL {
+        if desired.hud.is_some()
+            && !hud_props.is_empty()
+            && now.duration_since(last_hud) >= HUDBAR_INTERVAL
+        {
             last_hud = now;
             if c.request_data_on_user(REQ_HUDBAR, DEF_HUDBAR).is_err() {
                 return SessionEnd::Lost;
@@ -300,7 +320,9 @@ fn session(c: &Connection, rx: &Receiver<SimCmd>, desired: &mut Desired, emit: &
         }
         if desired.lod && now.duration_since(last_lod) >= LOD_INTERVAL {
             last_lod = now;
-            if c.request_data_on_user(REQ_DYNAMIC_LOD, DEF_DYNAMIC_LOD).is_err() {
+            if c.request_data_on_user(REQ_DYNAMIC_LOD, DEF_DYNAMIC_LOD)
+                .is_err()
+            {
                 return SessionEnd::Lost;
             }
         }
@@ -314,12 +336,24 @@ mod tests {
     #[test]
     fn translates_required_data() {
         let vals: Vec<f64> = (0..10).map(|i| i as f64).collect();
-        match translate(Recv::SimObjectData { request_id: REQ_REQUIRED, values: vals }, &[]) {
+        match translate(
+            Recv::SimObjectData {
+                request_id: REQ_REQUIRED,
+                values: vals,
+            },
+            &[],
+        ) {
             Translated::Event(SimEvent::Required(d)) => assert_eq!(d.camera_state, 4.0),
             other => panic!("unexpected {other:?}"),
         }
         assert_eq!(
-            translate(Recv::SimObjectData { request_id: REQ_REQUIRED, values: vec![1.0] }, &[]),
+            translate(
+                Recv::SimObjectData {
+                    request_id: REQ_REQUIRED,
+                    values: vec![1.0]
+                },
+                &[]
+            ),
             Translated::Ignore
         );
     }
@@ -327,7 +361,13 @@ mod tests {
     #[test]
     fn translates_hud_bar_data_by_definition_order() {
         let props = [HudProp::SimRate, HudProp::Flap];
-        match translate(Recv::SimObjectData { request_id: REQ_HUDBAR, values: vec![2.0, 5.0] }, &props) {
+        match translate(
+            Recv::SimObjectData {
+                request_id: REQ_HUDBAR,
+                values: vec![2.0, 5.0],
+            },
+            &props,
+        ) {
             Translated::Event(SimEvent::HudBar(v)) => {
                 assert_eq!(v, vec![(HudProp::SimRate, 2.0), (HudProp::Flap, 5.0)]);
             }
@@ -338,7 +378,10 @@ mod tests {
     #[test]
     fn exceptions_and_quit() {
         assert_eq!(translate(Recv::Quit, &[]), Translated::Lost);
-        assert_eq!(translate(Recv::Exception(ffi::EXC_DATA_ERROR), &[]), Translated::Ignore);
+        assert_eq!(
+            translate(Recv::Exception(ffi::EXC_DATA_ERROR), &[]),
+            Translated::Ignore
+        );
         assert_eq!(translate(Recv::Exception(1), &[]), Translated::Lost);
     }
 
@@ -346,17 +389,32 @@ mod tests {
     fn aircraft_and_frame_events() {
         assert_eq!(
             translate(
-                Recv::EventFilename { event_id: EVT_AIRCRAFT_LOADED, file: "a\\b\\c".into() },
+                Recv::EventFilename {
+                    event_id: EVT_AIRCRAFT_LOADED,
+                    file: "a\\b\\c".into()
+                },
                 &[]
             ),
             Translated::Event(SimEvent::AircraftPath("a\\b\\c".into()))
         );
         assert_eq!(
-            translate(Recv::EventFilename { event_id: EVT_VIEW, file: "x".into() }, &[]),
+            translate(
+                Recv::EventFilename {
+                    event_id: EVT_VIEW,
+                    file: "x".into()
+                },
+                &[]
+            ),
             Translated::Ignore
         );
         assert_eq!(
-            translate(Recv::SystemState { request_id: REQ_SYSTEM_STATE_AIRCRAFT_PATH, text: "p".into() }, &[]),
+            translate(
+                Recv::SystemState {
+                    request_id: REQ_SYSTEM_STATE_AIRCRAFT_PATH,
+                    text: "p".into()
+                },
+                &[]
+            ),
             Translated::Event(SimEvent::AircraftPath("p".into()))
         );
         assert_eq!(

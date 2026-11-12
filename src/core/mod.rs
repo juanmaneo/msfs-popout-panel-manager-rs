@@ -111,14 +111,10 @@ impl State {
         let Some(name) = self.sim.aircraft_name.as_deref().filter(|n| !n.is_empty()) else {
             return true;
         };
-        match self
+        !self
             .profiles
             .iter()
-            .find(|p| p.aircraft_bindings.iter().any(|b| b == name))
-        {
-            Some(p) if p.id != active.id => false,
-            _ => true,
-        }
+            .any(|p| p.id != active.id && p.aircraft_bindings.iter().any(|b| b == name))
     }
 }
 
@@ -175,7 +171,7 @@ pub struct Core {
 
 impl Core {
     /// Load the data files and start all background threads.
-    pub fn new() -> Arc<Core> {
+    pub fn new() -> std::io::Result<Arc<Core>> {
         let settings = storage::read_app_setting().unwrap_or_default();
         let roaming = settings.general_setting.use_application_data_path;
         crate::logger::init(storage::log_dir(roaming));
@@ -205,12 +201,12 @@ impl Core {
             other => {
                 let _ = hook_tx.send(CoreMsg::Hook(other));
             }
-        });
+        })?;
 
         let sim_tx = tx.clone();
         let sim = simconnect::spawn(move |e| {
             let _ = sim_tx.send(CoreMsg::Sim(e));
-        });
+        })?;
 
         let core = Arc::new(Core {
             state: Mutex::new(state),
@@ -238,16 +234,14 @@ impl Core {
         let c = core.clone();
         std::thread::Builder::new()
             .name("popm-core".into())
-            .spawn(move || c.run_loop(rx))
-            .expect("spawn core thread");
+            .spawn(move || c.run_loop(rx))?;
 
         let c = core.clone();
         std::thread::Builder::new()
             .name("popm-winevents".into())
-            .spawn(move || c.run_win_event_worker(win_rx))
-            .expect("spawn window event thread");
+            .spawn(move || c.run_win_event_worker(win_rx))?;
 
-        core
+        Ok(core)
     }
 
     // --- state access ---------------------------------------------------------------
@@ -464,15 +458,15 @@ impl AutoSaver {
             crate::logger::set_dir(storage::log_dir(roaming));
         } else {
             let dir = storage::data_dir(roaming);
-            if profiles_json != self.profiles_json {
-                if let Err(e) = storage::write_profiles_to(&dir, &profiles) {
-                    log::error!("Unable to write user data file: {e}");
-                }
+            if profiles_json != self.profiles_json
+                && let Err(e) = storage::write_profiles_to(&dir, &profiles)
+            {
+                log::error!("Unable to write user data file: {e}");
             }
-            if settings_json != self.settings_json {
-                if let Err(e) = storage::write_app_setting_to(&dir, &settings) {
-                    log::error!("Unable to write app setting data file: {e}");
-                }
+            if settings_json != self.settings_json
+                && let Err(e) = storage::write_app_setting_to(&dir, &settings)
+            {
+                log::error!("Unable to write app setting data file: {e}");
             }
         }
         self.profiles_json = profiles_json;

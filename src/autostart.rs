@@ -17,11 +17,10 @@ fn decode(bytes: &[u8]) -> String {
 /// Remove a leading `<?xml ... ?>` declaration (its encoding attribute may lie).
 fn strip_declaration(s: &str) -> &str {
     let t = s.trim_start();
-    if t.starts_with("<?xml") {
-        if let Some(end) = t.find("?>") {
+    if t.starts_with("<?xml")
+        && let Some(end) = t.find("?>") {
             return t[end + 2..].trim_start();
         }
-    }
     t
 }
 
@@ -83,11 +82,10 @@ pub fn add_entry(root: &mut Element, exe_path: &str) {
     let mut entry = new_entry(exe_path);
     match existing {
         Some(i) => {
-            if let Some(old) = root.children[i].as_element() {
-                if let Some(cl) = old.get_child("CommandLine") {
+            if let Some(old) = root.children[i].as_element()
+                && let Some(cl) = old.get_child("CommandLine") {
                     entry.children.push(XMLNode::Element(cl.clone()));
                 }
-            }
             root.children[i] = XMLNode::Element(entry);
         }
         None => root.children.push(XMLNode::Element(entry)),

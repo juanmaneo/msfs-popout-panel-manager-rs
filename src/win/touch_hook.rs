@@ -113,11 +113,10 @@ pub fn on_mouse_event(msg: u32, x: i32, y: i32, extra_info: usize) -> bool {
                     if refocus_enabled && panel.auto_game_refocus {
                         let idx = REFOCUS_INDEX.load(Ordering::SeqCst);
                         sleep_ms(refocus_delay);
-                        if idx == REFOCUS_INDEX.load(Ordering::SeqCst) {
-                            if let Some((_, cx, cy)) = sim_center() {
+                        if idx == REFOCUS_INDEX.load(Ordering::SeqCst)
+                            && let Some((_, cx, cy)) = sim_center() {
                                 input::left_click(cx, cy);
                             }
-                        }
                     }
                 });
             } else {
@@ -144,25 +143,21 @@ pub fn on_mouse_event(msg: u32, x: i32, y: i32, extra_info: usize) -> bool {
                     if refocus_enabled && panel.auto_game_refocus {
                         let idx = REFOCUS_INDEX.load(Ordering::SeqCst);
                         sleep_ms(refocus_delay);
-                        if idx == REFOCUS_INDEX.load(Ordering::SeqCst) {
-                            if let Some((h, cx, cy)) = sim_center() {
+                        if idx == REFOCUS_INDEX.load(Ordering::SeqCst)
+                            && let Some((h, cx, cy)) = sim_center() {
                                 window::set_foreground(h);
                                 window::set_cursor_pos(cx, cy);
                             }
-                        }
                     }
                 });
             }
             true
         }
-        WM_MOUSEMOVE => {
-            if !TOUCH_DOWN_COMPLETED.load(Ordering::SeqCst) {
+        WM_MOUSEMOVE
+            if !TOUCH_DOWN_COMPLETED.load(Ordering::SeqCst) => {
                 DRAGGED.store(true, Ordering::SeqCst);
                 true
-            } else {
-                false
             }
-        }
         _ => false,
     }
 }

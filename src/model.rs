@@ -613,19 +613,17 @@ impl UserProfile {
     }
 
     pub fn move_panel_up(&mut self, id: Uuid) {
-        if let Some(i) = self.panel_configs.iter().position(|p| p.id == id) {
-            if i > 0 {
+        if let Some(i) = self.panel_configs.iter().position(|p| p.id == id)
+            && i > 0 {
                 self.panel_configs.swap(i, i - 1);
             }
-        }
     }
 
     pub fn move_panel_down(&mut self, id: Uuid) {
-        if let Some(i) = self.panel_configs.iter().position(|p| p.id == id) {
-            if i + 1 < self.panel_configs.len() {
+        if let Some(i) = self.panel_configs.iter().position(|p| p.id == id)
+            && i + 1 < self.panel_configs.len() {
                 self.panel_configs.swap(i, i + 1);
             }
-        }
     }
 }
 
@@ -898,15 +896,14 @@ impl Default for KeyboardShortcutSetting {
 impl KeyboardShortcutSetting {
     /// Convert the legacy single-letter binding to the new `a|b|c` format.
     pub fn migrate_legacy(&mut self) {
-        if let Some(v) = self.start_pop_out_key_binding.take() {
-            if !v.is_empty() {
+        if let Some(v) = self.start_pop_out_key_binding.take()
+            && !v.is_empty() {
                 self.pop_out_keyboard_binding = Some(crate::keybinding::sort_binding(&[
                     "LeftCtrl".to_string(),
                     "LeftShift".to_string(),
                     v.to_uppercase(),
                 ]));
             }
-        }
     }
 }
 

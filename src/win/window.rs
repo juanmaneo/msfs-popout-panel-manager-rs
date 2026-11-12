@@ -336,8 +336,8 @@ pub fn is_msfs_windowed() -> bool {
 }
 
 pub fn msfs_game_window_location() -> MsfsGameWindowConfig {
-    if is_msfs_windowed() {
-        if let Some(h) = msfs_game_window() {
+    if is_msfs_windowed()
+        && let Some(h) = msfs_game_window() {
             let r = rect_dwm(h);
             return MsfsGameWindowConfig {
                 left: r.x,
@@ -346,16 +346,14 @@ pub fn msfs_game_window_location() -> MsfsGameWindowConfig {
                 height: r.height,
             };
         }
-    }
     MsfsGameWindowConfig::default()
 }
 
 pub fn set_msfs_game_window_location(cfg: &MsfsGameWindowConfig) {
-    if is_msfs_windowed() && cfg.is_valid() {
-        if let Some(h) = msfs_game_window() {
+    if is_msfs_windowed() && cfg.is_valid()
+        && let Some(h) = msfs_game_window() {
             move_window_raw(h, cfg.left, cfg.top, cfg.width, cfg.height);
         }
-    }
 }
 
 pub fn is_msfs_in_focus() -> bool {

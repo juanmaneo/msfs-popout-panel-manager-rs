@@ -239,9 +239,9 @@ pub fn cloud_quality_name(v: i32) -> &'static str {
 pub fn compute_tlod(setting: &DynamicLodSetting, sim: &DynamicLodSimData, delta_fps: i32) -> i32 {
     let step = 10.max((delta_fps / 2).abs());
     let new_tlod = sim.tlod + delta_fps.signum() * step;
-    if setting.tlod_min_on_ground && sim.alt_above_ground <= setting.alt_tlod_base as f64 {
-        setting.tlod_min
-    } else if new_tlod < setting.tlod_min {
+    if (setting.tlod_min_on_ground && sim.alt_above_ground <= setting.alt_tlod_base as f64)
+        || new_tlod < setting.tlod_min
+    {
         setting.tlod_min
     } else if new_tlod > setting.tlod_max {
         setting.tlod_max

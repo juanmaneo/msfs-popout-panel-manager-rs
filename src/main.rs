@@ -35,18 +35,33 @@ fn main() {
         return;
     }
 
-    let core = core::Core::new();
+    let core = match core::Core::new() {
+        Ok(core) => core,
+        Err(e) => {
+            log::error!("failed to start background threads: {e}");
+            win::message_box(
+                "MSFS Pop Out Panel Manager",
+                &format!("The application could not start: {e}"),
+            );
+            return;
+        }
+    };
     let result = ui::run(core.clone());
     core.shutdown();
 
     if let Err(e) = result {
         log::error!("GUI terminated with an error: {e}");
-        win::message_box("MSFS Pop Out Panel Manager", &format!("The application stopped: {e}"));
+        win::message_box(
+            "MSFS Pop Out Panel Manager",
+            &format!("The application stopped: {e}"),
+        );
     }
 }
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("MSFS Pop Out Panel Manager only runs on Windows (it controls Microsoft Flight Simulator).");
+    eprintln!(
+        "MSFS Pop Out Panel Manager only runs on Windows (it controls Microsoft Flight Simulator)."
+    );
     std::process::exit(1);
 }

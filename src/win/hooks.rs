@@ -330,16 +330,15 @@ pub struct HookHandle {
 impl HookHandle {
     /// Start the hook thread. `emitter` is called (on the hook thread) for every event and
     /// must not block.
-    pub fn spawn(emitter: impl Fn(HookEvent) + Send + Sync + 'static) -> Self {
+    pub fn spawn(emitter: impl Fn(HookEvent) + Send + Sync + 'static) -> std::io::Result<Self> {
         let _ = EMITTER.set(Arc::new(emitter));
         let (tx, rx) = channel();
         let thread_id = Arc::new(AtomicU32::new(0));
         let tid = thread_id.clone();
         std::thread::Builder::new()
             .name("popm-hooks".into())
-            .spawn(move || thread_main(rx, tid))
-            .expect("spawn hook thread");
-        Self { tx, thread_id }
+            .spawn(move || thread_main(rx, tid))?;
+        Ok(Self { tx, thread_id })
     }
 
     pub fn send(&self, cmd: HookCmd) {

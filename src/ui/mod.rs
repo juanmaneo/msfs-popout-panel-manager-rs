@@ -90,12 +90,11 @@ impl App {
             ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
         }
 
-        if !self.app_hwnd_registered {
-            if let Some(hwnd) = window::find_own_window(MAIN_TITLE) {
+        if !self.app_hwnd_registered
+            && let Some(hwnd) = window::find_own_window(MAIN_TITLE) {
                 self.core.set_app_hwnd(hwnd);
                 self.app_hwnd_registered = true;
             }
-        }
 
         if self.applied_always_on_top != Some(always_on_top) {
             self.applied_always_on_top = Some(always_on_top);
@@ -138,20 +137,18 @@ impl eframe::App for App {
         if hud_open {
             hud_bar::show(ctx, core.clone());
             // The pop out workflow waits for the window handle to position the HUD bar.
-            if let Some(id) = hud_panel {
-                if let Some(hwnd) = window::find_own_window(hud_bar::HUD_BAR_TITLE) {
+            if let Some(id) = hud_panel
+                && let Some(hwnd) = window::find_own_window(hud_bar::HUD_BAR_TITLE) {
                     core.set_panel_window_handle(id, hwnd);
                 }
-            }
         }
 
         if pad_open {
             num_pad::show(ctx, core.clone());
-            if let Some(id) = pad_panel {
-                if let Some(hwnd) = window::find_own_window(num_pad::NUM_PAD_TITLE) {
+            if let Some(id) = pad_panel
+                && let Some(hwnd) = window::find_own_window(num_pad::NUM_PAD_TITLE) {
                     core.set_panel_window_handle(id, hwnd);
                 }
-            }
         }
 
         // The status window shows progress messages while a pop out / source edit runs

@@ -335,11 +335,10 @@ impl Core {
                     }
                 });
 
-                if let (Some(x), Some(y)) = (panel.panel_source.x, panel.panel_source.y) {
-                    if let Some(sim_hwnd) = window::msfs_game_window() {
+                if let (Some(x), Some(y)) = (panel.panel_source.x, panel.panel_source.y)
+                    && let Some(sim_hwnd) = window::msfs_game_window() {
                         input::prepare_to_pop_out_panel(sim_hwnd, self.app_hwnd(), x, y, turbo);
                     }
-                }
 
                 self.execute_custom_pop_out(panel.id, built_in, index as i32);
                 self.apply_panel_location(panel.id);
@@ -359,11 +358,10 @@ impl Core {
             });
         }
 
-        if let Some(r) = app_rect {
-            if r.width > 0 && r.height > 0 {
+        if let Some(r) = app_rect
+            && r.width > 0 && r.height > 0 {
                 window::move_window_rect(app, r);
             }
-        }
     }
 
     fn step_post_custom_panel_pop_out(&self) {
