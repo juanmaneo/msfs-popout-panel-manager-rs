@@ -181,12 +181,9 @@ impl HudBarData {
         map_gear(self.gear_right)
     }
 
+    /// Shortest round-trip form of the rate ("4", "0.5", "0.25"), like upstream's double text.
     pub fn sim_rate_text(&self) -> String {
-        if (self.sim_rate - self.sim_rate.round()).abs() < 1e-9 {
-            format!("{}", self.sim_rate.round() as i64)
-        } else {
-            format!("{:.2}", self.sim_rate)
-        }
+        self.sim_rate.to_string()
     }
 }
 
