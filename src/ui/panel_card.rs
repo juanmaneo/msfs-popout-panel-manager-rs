@@ -116,7 +116,7 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
             ui.colored_label(theme::ACCENT, format!("[{:?}]", panel.panel_type));
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if icon_button(ui, Icon::Close, "Delete panel").clicked() {
+                if panel.is_deletable() && icon_button(ui, Icon::Close, "Delete panel").clicked() {
                     dialogs.open_delete_panel(id);
                 }
                 let down = icon_button(ui, Icon::Down, "Move panel down in the list");
@@ -184,10 +184,7 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
             );
         }
         if panel.is_pop_out_success() == Some(false) {
-            ui.colored_label(
-                theme::INDIAN_RED,
-                "Pop out failed for this panel. Check the panel source location.",
-            );
+            ui.colored_label(theme::INDIAN_RED, pop_out_failure_text(panel));
         }
         if !panel.has_panel_source() && panel.is_custom_pop_out() {
             ui.colored_label(theme::NAVAJO_WHITE, "Please identify panel source");
@@ -196,6 +193,21 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
             ui.colored_label(theme::LIME_GREEN, "Floating panel enabled");
         }
     });
+}
+
+/// Upstream shows the position fields only once the panel has a source (built-in and HUD / NumPad
+/// windows always have one).
+fn has_position_fields(panel: &PanelConfig) -> bool {
+    !panel.is_custom_pop_out() || panel.has_panel_source()
+}
+
+/// Upstream error popup text, which depends on the panel type.
+fn pop_out_failure_text(panel: &PanelConfig) -> &'static str {
+    if panel.is_custom_pop_out() {
+        "Unable to pop out this panel. Please check the source panel circle defined for this panel is at the correct location and not blocked by other window. Also please check if this panel is a duplicate with another panel. Lastly, please close all instrumentation pop outs that were opened manually."
+    } else {
+        "Unable to configure this built-in panel. Please make sure this panel has been opened and popped out by the game."
+    }
 }
 
 fn position_size_section(
@@ -209,31 +221,48 @@ fn position_size_section(
 ) {
     let id = panel.id;
     ui.add_enabled_ui(editable, |ui| {
-        let row = |ui: &mut Ui, label: &str, value: i32, prop: PanelProp, set: fn(&mut PanelConfig, i32)| {
+        if !has_position_fields(panel) {
+            ui.colored_label(theme::NAVAJO_WHITE, "Please identify panel source");
+            return;
+        }
+
+        let not_full_screen = !panel.full_screen;
+        let row = |ui: &mut Ui, label: &str, value: i32, prop: PanelProp, set: fn(&mut PanelConfig, i32), enabled: bool| {
             ui.horizontal(|ui| {
                 ui.label(label);
                 let mut v = value;
-                if ui.add(egui::DragValue::new(&mut v).speed(1.0)).changed() {
+                let response = ui.add_enabled(
+                    enabled && not_full_screen,
+                    egui::DragValue::new(&mut v).speed(1.0),
+                );
+                if response.changed() {
                     set_panel_field(core, profile_id, id, prop, |p| set(p, v));
                 }
             });
         };
-        row(ui, "Left:", panel.left, PanelProp::Left, |p, v| p.left = v);
-        row(ui, "Top:", panel.top, PanelProp::Top, |p, v| p.top = v);
-        row(ui, "Width:", panel.width, PanelProp::Width, |p, v| p.width = v);
-        row(ui, "Height:", panel.height, PanelProp::Height, |p, v| p.height = v);
+        let is_refocus = panel.panel_type == PanelType::RefocusDisplay;
+        let is_hud = panel.panel_type == PanelType::HudBarWindow;
+        row(ui, "Left:", panel.left, PanelProp::Left, |p, v| p.left = v, !is_refocus);
+        row(ui, "Top:", panel.top, PanelProp::Top, |p, v| p.top = v, !is_refocus);
+        row(ui, "Width:", panel.width, PanelProp::Width, |p, v| p.width = v, !is_hud && !is_refocus);
+        row(ui, "Height:", panel.height, PanelProp::Height, |p, v| p.height = v, !is_hud && !is_refocus);
 
         // Move/resize mode + camera preview
         ui.horizontal(|ui| {
-            let mut moving = panel.is_editing_panel;
-            let r = toggle_labeled(ui, &mut moving, "Move/Resize")
-                .tip("Enable keyboard move/resize: arrow keys move the panel (Shift = 1px), Ctrl+arrows resize");
-            if r.changed() {
-                core.set_move_resize(id, moving);
+            if !is_refocus {
+                let mut moving = panel.is_editing_panel;
+                let can_move_resize = can_move_resize(panel, snap, is_popped_out);
+                let r = ui.add_enabled_ui(can_move_resize || moving, |ui| {
+                    toggle_labeled(ui, &mut moving, "Move/Resize")
+                        .tip("Enable keyboard move/resize: arrow keys move the panel (Shift = 1px), Ctrl+arrows resize")
+                });
+                if r.inner.changed() {
+                    core.set_move_resize(id, moving);
+                }
             }
             let cam = ui
                 .add_enabled(
-                    is_popped_out && panel.panel_type != PanelType::RefocusDisplay,
+                    is_popped_out && !is_refocus,
                     egui::Button::new("Camera"),
                 )
                 .tip("Show the camera view of this panel in the simulator");
@@ -244,6 +273,20 @@ fn position_size_section(
 
         camera_picker(ui, core, snap, profile_id, panel, editable);
     });
+}
+
+/// Upstream `MoveAndResizePanelCommand` gating: only one panel can be moved at a time, and only
+/// while the pop out window exists and is not in full screen.
+fn can_move_resize(panel: &PanelConfig, snap: &Snapshot, is_popped_out: bool) -> bool {
+    let another_panel_moving = snap.active.as_ref().is_some_and(|p| {
+        !p.current_move_resize_panel_id.is_nil() && p.current_move_resize_panel_id != panel.id
+    });
+    snap.sim.in_cockpit
+        && panel.is_pop_out_success().is_some()
+        && panel.panel_handle.hwnd().is_some()
+        && !panel.full_screen
+        && is_popped_out
+        && !another_panel_moving
 }
 
 /// Fixed camera chooser shown while a custom panel source is being identified
@@ -327,13 +370,15 @@ fn display_options_section(
                 |p, v| p.always_on_top = v,
             );
         });
-        toggle(
-            ui,
-            "Hide title bar",
-            panel.hide_titlebar,
-            PanelProp::HideTitlebar,
-            |p, v| p.hide_titlebar = v,
-        );
+        ui.add_enabled_ui(not_full_screen, |ui| {
+            toggle(
+                ui,
+                "Hide title bar",
+                panel.hide_titlebar,
+                PanelProp::HideTitlebar,
+                |p, v| p.hide_titlebar = v,
+            );
+        });
         toggle(
             ui,
             "Full screen",
