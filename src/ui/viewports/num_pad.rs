@@ -81,6 +81,9 @@ pub fn show(ctx: &egui::Context, core: Arc<Core>) {
         if class != egui::ViewportClass::Deferred {
             return;
         }
+        if ctx.input(|i| i.viewport().close_requested()) {
+            core.close_num_pad();
+        }
 
         let start_drag = egui::CentralPanel::default()
             .show(ctx, |ui| {
