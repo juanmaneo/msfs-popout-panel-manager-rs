@@ -80,14 +80,6 @@ impl Core {
         }
     }
 
-    pub fn show_panel_source_non_edit(&self, panel_id: Uuid) {
-        self.show_overlay(panel_id, false);
-    }
-
-    pub fn close_panel_source(&self, panel_id: Uuid) {
-        self.hooks.send(HookCmd::CloseOverlay(panel_id));
-    }
-
     /// The user pressed "set source" on a panel: the next click outside our window defines it.
     pub fn start_panel_selection(&self, panel_id: Uuid, legacy_camera: bool) {
         if !legacy_camera {

@@ -132,11 +132,6 @@ impl KeyCapture {
         self.pressed.clear();
         CaptureResult::Completed(binding)
     }
-
-    pub fn reset(&mut self) {
-        self.pressed.clear();
-        self.capturing = false;
-    }
 }
 
 /// Arrow-key driven move/resize of a panel (`PopOutPanelConfigCardViewModel.HandleKeyUpEvent`).

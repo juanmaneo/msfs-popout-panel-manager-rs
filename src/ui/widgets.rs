@@ -1,8 +1,8 @@
 //! Small reusable widgets: painted icons, toggle switches and tooltip helpers.
 
 use eframe::egui::{
-    self, Color32, Painter, Pos2, Rect, Response, RichText, Sense, Shape, Stroke, Ui, Vec2,
-    Role, WidgetInfo, pos2, vec2,
+    self, Color32, Painter, Pos2, Rect, Response, RichText, Role, Sense, Shape, Stroke, Ui, Vec2,
+    WidgetInfo, pos2, vec2,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -10,10 +10,6 @@ pub enum Icon {
     Up,
     Down,
     Close,
-    Plus,
-    Minus,
-    Crosshair,
-    Alert,
 }
 
 pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
@@ -46,26 +42,6 @@ pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Close => {
             painter.line_segment([pos2(c.x - r, c.y - r), pos2(c.x + r, c.y + r)], stroke);
             painter.line_segment([pos2(c.x - r, c.y + r), pos2(c.x + r, c.y - r)], stroke);
-        }
-        Icon::Plus => {
-            painter.line_segment([pos2(c.x - r, c.y), pos2(c.x + r, c.y)], stroke);
-            painter.line_segment([pos2(c.x, c.y - r), pos2(c.x, c.y + r)], stroke);
-        }
-        Icon::Minus => {
-            painter.line_segment([pos2(c.x - r, c.y), pos2(c.x + r, c.y)], stroke);
-        }
-        Icon::Crosshair => {
-            painter.circle_stroke(c, r * 0.8, stroke);
-            let tick = r * 1.35;
-            painter.line_segment([pos2(c.x - tick, c.y), pos2(c.x - r * 0.3, c.y)], stroke);
-            painter.line_segment([pos2(c.x + r * 0.3, c.y), pos2(c.x + tick, c.y)], stroke);
-            painter.line_segment([pos2(c.x, c.y - tick), pos2(c.x, c.y - r * 0.3)], stroke);
-            painter.line_segment([pos2(c.x, c.y + r * 0.3), pos2(c.x, c.y + tick)], stroke);
-        }
-        Icon::Alert => {
-            painter.circle_stroke(c, r * 1.3, stroke);
-            painter.line_segment([pos2(c.x, c.y - r * 0.7), pos2(c.x, c.y + r * 0.2)], stroke);
-            painter.circle_filled(pos2(c.x, c.y + r * 0.65), 1.2, color);
         }
     }
 }

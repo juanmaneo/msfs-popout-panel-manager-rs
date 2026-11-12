@@ -7,7 +7,6 @@ use super::{Core, MessageKind};
 use crate::flight_sim::{CAMERA_VIEW_CUSTOM_CAMERA, CAMERA_VIEW_HOME_COCKPIT_MODE};
 use crate::model::{AfterPopOutCameraViewType, PanelConfig, PanelHandle, PanelType};
 use crate::status::StatusMessageType;
-use crate::win::hooks::HookCmd;
 use crate::win::{input, window};
 use std::sync::Arc;
 use std::time::Duration;
@@ -864,11 +863,5 @@ impl Core {
                 break;
             }
         }
-    }
-
-    /// Remove all overlays and forget panel source editing state (used by the UI).
-    pub fn cancel_panel_source_editing(&self) {
-        self.hooks.send(HookCmd::CloseAllOverlays);
-        self.close_all_panel_sources();
     }
 }

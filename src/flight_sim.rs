@@ -242,10 +242,6 @@ pub struct FlightSimData {
 }
 
 impl FlightSimData {
-    pub fn has_aircraft_name(&self) -> bool {
-        self.aircraft_name.as_deref().is_some_and(|s| !s.is_empty())
-    }
-
     /// Upstream `FlightSimData.Reset()` (does not touch flight started / hud / lod data).
     pub fn reset(&mut self) {
         self.aircraft_name = None;
@@ -375,7 +371,7 @@ mod tests {
         f.is_in_cockpit = true;
         f.is_flight_started = true;
         f.reset();
-        assert!(!f.has_aircraft_name());
+        assert!(f.aircraft_name.is_none());
         assert!(!f.is_in_cockpit);
         assert!(f.is_flight_started); // untouched, like upstream
     }

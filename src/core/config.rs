@@ -30,8 +30,6 @@ pub enum PanelProp {
     FullScreen,
     TouchEnabled,
     AutoGameRefocus,
-    /// Floating panel settings; only persisted, nothing to apply.
-    FloatingPanel,
 }
 
 impl Core {
@@ -101,7 +99,7 @@ impl Core {
             PanelProp::AlwaysOnTop => window::apply_always_on_top(h, c.always_on_top),
             PanelProp::HideTitlebar => window::apply_hide_title_bar(h, c.hide_titlebar),
             // the hooks follow from the panel flags (see `reconcile_hooks`)
-            PanelProp::TouchEnabled | PanelProp::AutoGameRefocus | PanelProp::FloatingPanel => {}
+            PanelProp::TouchEnabled | PanelProp::AutoGameRefocus => {}
         }
     }
 

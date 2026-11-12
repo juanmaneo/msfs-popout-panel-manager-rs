@@ -4,7 +4,6 @@ use super::{Rect, from_hwnd, from_wide, to_hwnd, wide};
 use crate::model::{MonitorInfo, MsfsGameWindowConfig, PanelType};
 use std::time::Duration;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
-use windows_sys::core::BOOL;
 use windows_sys::Win32::Graphics::Dwm::{
     DWMWA_CAPTION_COLOR, DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute, DwmSetWindowAttribute,
 };
@@ -15,10 +14,11 @@ use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_STYLE, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
     GetWindowPlacement, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, HWND_NOTOPMOST,
-    HWND_TOPMOST, IsIconic, IsWindow, MoveWindow, PostMessageW, SW_MINIMIZE, SW_RESTORE, SWP_NOMOVE,
+    HWND_TOPMOST, IsIconic, MoveWindow, PostMessageW, SW_MINIMIZE, SW_RESTORE, SWP_NOMOVE,
     SWP_NOSIZE, SetCursorPos, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW,
     ShowWindow, ShowWindowAsync, WINDOWPLACEMENT, WM_CLOSE, WS_CAPTION, WS_SIZEBOX,
 };
+use windows_sys::core::BOOL;
 
 pub const SW_SHOWNORMAL: i32 = 1;
 pub const SW_SHOWMINIMIZED: i32 = 2;
@@ -29,10 +29,6 @@ fn sleep(ms: u64) {
 }
 
 // --- basic queries ----------------------------------------------------------------
-
-pub fn is_window(h: isize) -> bool {
-    unsafe { IsWindow(to_hwnd(h)) != 0 }
-}
 
 pub fn class_name(h: isize) -> String {
     let mut buf = [0u16; 256];
@@ -211,21 +207,6 @@ pub fn apply_always_on_top(h: isize, on_top: bool) {
             sleep(250);
             move_window(h, r.x, r.y, r.width, r.height);
         }
-    }
-}
-
-/// Make one of our own windows topmost (no waiting, no geometry changes).
-pub fn set_topmost(h: isize) {
-    unsafe {
-        SetWindowPos(
-            to_hwnd(h),
-            HWND_TOPMOST,
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | windows_sys::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE,
-        );
     }
 }
 

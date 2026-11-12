@@ -125,7 +125,6 @@ impl State {
 pub(crate) enum CoreMsg {
     Sim(SimEvent),
     Hook(HookEvent),
-    Wake,
     Shutdown,
 }
 
@@ -318,7 +317,7 @@ impl Core {
                 Ok(CoreMsg::Shutdown) | Err(RecvTimeoutError::Disconnected) => break,
                 Ok(CoreMsg::Sim(e)) => self.handle_sim_event(e),
                 Ok(CoreMsg::Hook(e)) => self.handle_hook_event(e, &mut capture),
-                Ok(CoreMsg::Wake) | Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Timeout) => {}
             }
 
             let now = Instant::now();

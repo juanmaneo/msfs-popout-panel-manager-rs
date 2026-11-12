@@ -12,7 +12,7 @@ fn color_of(kind: StatusMessageType) -> Color32 {
     match kind {
         StatusMessageType::Info => Color32::WHITE,
         StatusMessageType::Success => Color32::from_rgb(0, 255, 0),
-        StatusMessageType::Failure | StatusMessageType::Error => Color32::RED,
+        StatusMessageType::Failure => Color32::RED,
         StatusMessageType::Executing => Color32::from_rgb(255, 222, 173),
     }
 }

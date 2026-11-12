@@ -26,12 +26,6 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WM_APP, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
-/// Win event range constants re-exported for the core's reconciler.
-pub const EVT_CAPTURE_START: u32 = EVENT_SYSTEM_CAPTURESTART;
-pub const EVT_CAPTURE_END: u32 = EVENT_SYSTEM_CAPTUREEND;
-pub const EVT_MOVE_SIZE_END: u32 = EVENT_SYSTEM_MOVESIZEEND;
-pub const EVT_STATE_CHANGE: u32 = EVENT_OBJECT_STATECHANGE;
-
 #[derive(Debug, Clone)]
 pub enum HookEvent {
     /// A physical key press/release (events we inject ourselves are filtered out).

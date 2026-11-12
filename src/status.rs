@@ -9,7 +9,6 @@ pub enum StatusMessageType {
     Success,
     Failure,
     Executing,
-    Error,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,11 +58,13 @@ impl StatusLog {
 
     fn push(&self, text: &str, kind: StatusMessageType, new_line: bool) {
         self.with(|i| {
-            i.messages.push(StatusMessage {
-                text: text.to_string(),
-                kind,
-                new_line,
-            })
+            if i.enabled {
+                i.messages.push(StatusMessage {
+                    text: text.to_string(),
+                    kind,
+                    new_line,
+                });
+            }
         });
     }
 
@@ -93,10 +94,6 @@ impl StatusLog {
     pub fn snapshot(&self) -> (u64, Vec<StatusMessage>) {
         let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         (g.version, g.messages.clone())
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).enabled
     }
 
     /// Run a workflow step, printing `message  (Executing)` and then `(OK)` / `(FAILED)`.
@@ -134,6 +131,7 @@ mod tests {
     #[test]
     fn step_replaces_executing_with_result() {
         let log = StatusLog::new();
+        log.set_enabled(true);
         assert!(log.step("Doing", false, || true));
         assert!(!log.step("Failing", true, || false));
         let (_, m) = log.snapshot();
@@ -148,6 +146,7 @@ mod tests {
     #[test]
     fn version_changes_and_clear() {
         let log = StatusLog::new();
+        log.set_enabled(true);
         let (v0, _) = log.snapshot();
         log.write_line("hello", StatusMessageType::Info);
         let (v1, m) = log.snapshot();

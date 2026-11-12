@@ -2,20 +2,14 @@
 
 use eframe::egui::{self, Color32, Margin, Stroke, Theme, ThemePreference, vec2};
 
-pub const LIME: Color32 = Color32::from_rgb(0, 255, 0);
 pub const LIME_GREEN: Color32 = Color32::from_rgb(50, 205, 50);
 pub const INDIAN_RED: Color32 = Color32::from_rgb(205, 92, 92);
 pub const NAVAJO_WHITE: Color32 = Color32::from_rgb(255, 222, 173);
 pub const ANTIQUE_WHITE: Color32 = Color32::from_rgb(250, 235, 215);
-pub const DIM_GRAY: Color32 = Color32::from_rgb(105, 105, 105);
-pub const SLATE_GRAY: Color32 = Color32::from_rgb(112, 128, 144);
 pub const SUCCESS: Color32 = Color32::from_rgb(76, 175, 80);
 pub const ERROR: Color32 = Color32::from_rgb(229, 57, 53);
-pub const UNKNOWN: Color32 = Color32::from_rgb(130, 130, 130);
 pub const ACCENT: Color32 = Color32::from_rgb(33, 150, 243);
 pub const CARD_FILL: Color32 = Color32::from_rgb(45, 45, 48);
-pub const CARD_FILL_SELECTED: Color32 = Color32::from_rgb(82, 82, 82);
-pub const BAR_FILL: Color32 = Color32::from_rgb(24, 24, 26);
 
 /// `0xRRGGBB` to a colour.
 pub fn rgb(value: u32) -> Color32 {
