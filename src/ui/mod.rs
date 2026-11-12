@@ -22,7 +22,7 @@ use crate::core::Core;
 use crate::win::window;
 use eframe::egui::{self, ViewportCommand, WindowLevel};
 use main_window::MainWindow;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use viewports::{hud_bar, num_pad, status_window};
 
@@ -40,6 +40,7 @@ struct App {
     applied_minimize_to_tray: bool,
     ui_frames: u32,
     status_open: bool,
+    hud_timer: Arc<Mutex<hud_bar::HudTimer>>,
 }
 
 impl App {
@@ -52,6 +53,7 @@ impl App {
             applied_minimize_to_tray: false,
             ui_frames: 0,
             status_open: false,
+            hud_timer: Arc::default(),
         }
     }
 
@@ -91,10 +93,11 @@ impl App {
         }
 
         if !self.app_hwnd_registered
-            && let Some(hwnd) = window::find_own_window(MAIN_TITLE) {
-                self.core.set_app_hwnd(hwnd);
-                self.app_hwnd_registered = true;
-            }
+            && let Some(hwnd) = window::find_own_window(MAIN_TITLE)
+        {
+            self.core.set_app_hwnd(hwnd);
+            self.app_hwnd_registered = true;
+        }
 
         if self.applied_always_on_top != Some(always_on_top) {
             self.applied_always_on_top = Some(always_on_top);
@@ -135,20 +138,22 @@ impl eframe::App for App {
         });
 
         if hud_open {
-            hud_bar::show(ctx, core.clone());
+            hud_bar::show(ctx, core.clone(), self.hud_timer.clone());
             // The pop out workflow waits for the window handle to position the HUD bar.
             if let Some(id) = hud_panel
-                && let Some(hwnd) = window::find_own_window(hud_bar::HUD_BAR_TITLE) {
-                    core.set_panel_window_handle(id, hwnd);
-                }
+                && let Some(hwnd) = window::find_own_window(hud_bar::HUD_BAR_TITLE)
+            {
+                core.set_panel_window_handle(id, hwnd);
+            }
         }
 
         if pad_open {
             num_pad::show(ctx, core.clone());
             if let Some(id) = pad_panel
-                && let Some(hwnd) = window::find_own_window(num_pad::NUM_PAD_TITLE) {
-                    core.set_panel_window_handle(id, hwnd);
-                }
+                && let Some(hwnd) = window::find_own_window(num_pad::NUM_PAD_TITLE)
+            {
+                core.set_panel_window_handle(id, hwnd);
+            }
         }
 
         // The status window shows progress messages while a pop out / source edit runs
