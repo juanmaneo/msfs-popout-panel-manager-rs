@@ -136,6 +136,7 @@ enum SessionEnd {
 fn run(rx: Receiver<SimCmd>, emit: impl Fn(SimEvent)) {
     let mut lib: Option<SimConnectLib> = None;
     let mut warned = false;
+    let mut setup_warned = false;
     let mut desired = Desired::default();
 
     loop {
@@ -155,16 +156,26 @@ fn run(rx: Receiver<SimCmd>, emit: impl Fn(SimEvent)) {
         let conn = lib
             .as_ref()
             .and_then(|l| Connection::open(l, APP_NAME).ok());
-        if let Some(conn) = conn
-            && setup(&conn).is_ok() {
-                emit(SimEvent::Connected);
-                let end = session(&conn, &rx, &mut desired, &emit);
-                emit(SimEvent::Disconnected);
-                drop(conn);
-                if matches!(end, SessionEnd::Shutdown) {
-                    return;
+        // Failing to open the connection is the normal "simulator not running" case.
+        if let Some(conn) = conn {
+            match setup(&conn) {
+                Ok(()) => {
+                    setup_warned = false;
+                    emit(SimEvent::Connected);
+                    let end = session(&conn, &rx, &mut desired, &emit);
+                    emit(SimEvent::Disconnected);
+                    drop(conn);
+                    if matches!(end, SessionEnd::Shutdown) {
+                        return;
+                    }
                 }
+                Err(hr) if !setup_warned => {
+                    setup_warned = true;
+                    log::error!("SimConnect: unable to set up the connection: 0x{hr:08X}");
+                }
+                Err(_) => {}
             }
+        }
 
         if idle(&rx, &mut desired, CONNECT_RETRY) {
             return;
@@ -215,13 +226,22 @@ fn setup(c: &Connection) -> Result<(), i32> {
     Ok(())
 }
 
+/// Log a failed SimConnect call that does not stop the session.
+fn log_failure(what: &str, result: Result<(), ffi::Hresult>) {
+    if let Err(hr) = result {
+        log::error!("SimConnect: unable to {what}: 0x{hr:08X}");
+    }
+}
+
 fn apply_hud(c: &Connection, t: Option<HudBarType>) -> Vec<HudProp> {
+    // Nothing to clear yet on the first call, which SimConnect may report as an error.
     let _ = c.clear_data_definition(DEF_HUDBAR);
     let mut props = Vec::new();
     if let Some(t) = t {
         for (prop, (name, units)) in hud_bar_vars(t) {
-            if c.add_to_data_definition(DEF_HUDBAR, name, units).is_ok() {
-                props.push(prop);
+            match c.add_to_data_definition(DEF_HUDBAR, name, units) {
+                Ok(()) => props.push(prop),
+                Err(hr) => log::error!("SimConnect: unable to add {name}: 0x{hr:08X}"),
             }
         }
     }
@@ -229,13 +249,20 @@ fn apply_hud(c: &Connection, t: Option<HudBarType>) -> Vec<HudProp> {
 }
 
 fn apply_lod(c: &Connection, on: bool) {
+    // Not subscribed yet on the first call, which SimConnect may report as an error.
     let _ = c.unsubscribe_from_system_event(EVT_FRAME);
     if on {
         let _ = c.clear_data_definition(DEF_DYNAMIC_LOD);
         for (name, units) in DYNAMIC_LOD_VARS {
-            let _ = c.add_to_data_definition(DEF_DYNAMIC_LOD, name, units);
+            log_failure(
+                &format!("add {name}"),
+                c.add_to_data_definition(DEF_DYNAMIC_LOD, name, units),
+            );
         }
-        let _ = c.subscribe_to_system_event(EVT_FRAME, "Frame");
+        log_failure(
+            "subscribe to frame events",
+            c.subscribe_to_system_event(EVT_FRAME, "Frame"),
+        );
     }
 }
 

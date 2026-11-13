@@ -41,6 +41,33 @@ fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
     })
 }
 
+/// Read and parse a data file. A missing file is normal (first run). An unreadable or
+/// corrupt one is logged and, so that the next save cannot destroy it, copied to `.bak`.
+fn read_data_file<T>(
+    path: &Path,
+    parse: impl FnOnce(&str) -> Result<T, serde_json::Error>,
+) -> Option<T> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(e) => {
+            log::error!("Unable to read data file {}: {e}", path.display());
+            return None;
+        }
+    };
+    match parse(&text) {
+        Ok(value) => Some(value),
+        Err(e) => {
+            log::error!("Unable to parse data file {}: {e}", path.display());
+            let backup = path.with_extension("json.bak");
+            if let Err(e) = std::fs::copy(path, &backup) {
+                log::error!("Unable to back up {}: {e}", backup.display());
+            }
+            None
+        }
+    }
+}
+
 // --- profiles ---------------------------------------------------------------
 
 pub fn parse_profiles(json: &str) -> Result<Vec<UserProfile>, serde_json::Error> {
@@ -50,10 +77,7 @@ pub fn parse_profiles(json: &str) -> Result<Vec<UserProfile>, serde_json::Error>
 }
 
 pub fn read_profiles_from(dir: &Path) -> Vec<UserProfile> {
-    std::fs::read_to_string(dir.join(USER_PROFILE_FILE))
-        .ok()
-        .and_then(|s| parse_profiles(&s).ok())
-        .unwrap_or_default()
+    read_data_file(&dir.join(USER_PROFILE_FILE), parse_profiles).unwrap_or_default()
 }
 
 pub fn profiles_to_json(profiles: &[UserProfile]) -> String {
@@ -104,8 +128,7 @@ pub fn read_app_setting() -> Option<ApplicationSetting> {
     } else {
         (docs, false)
     };
-    let text = std::fs::read_to_string(path).ok()?;
-    let mut s = parse_app_setting(&text).ok()?;
+    let mut s = read_data_file(&path, parse_app_setting)?;
     s.general_setting.use_application_data_path = is_roaming;
     Some(s)
 }
@@ -165,8 +188,19 @@ mod tests {
     fn missing_or_corrupt_profile_file_gives_empty_list() {
         let dir = temp_dir();
         assert!(read_profiles_from(&dir).is_empty());
+        assert!(!dir.join("userprofiledata.json.bak").exists()); // missing is not corrupt
         std::fs::write(dir.join(USER_PROFILE_FILE), "{ not json").unwrap();
         assert!(read_profiles_from(&dir).is_empty());
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn corrupt_file_is_kept_as_backup() {
+        let dir = temp_dir();
+        std::fs::write(dir.join(USER_PROFILE_FILE), "{ not json").unwrap();
+        assert!(read_profiles_from(&dir).is_empty());
+        let backup = std::fs::read_to_string(dir.join("userprofiledata.json.bak")).unwrap();
+        assert_eq!(backup, "{ not json");
         std::fs::remove_dir_all(dir).ok();
     }
 
