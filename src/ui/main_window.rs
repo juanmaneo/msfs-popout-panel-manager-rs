@@ -8,7 +8,10 @@ use super::widgets::{ResponseExt, heading, status_dot};
 use super::{panel_card, profile_card};
 use crate::core::Core;
 use crate::model::UserProfile;
-use eframe::egui::{self, Align, Button, CentralPanel, Layout, Panel, RichText, ScrollArea, Ui};
+use eframe::egui::{
+    self, Align, Atom, Button, CentralPanel, Layout, Panel, Response, RichText, ScrollArea,
+    TextWrapMode, Ui, vec2,
+};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -39,7 +42,7 @@ impl MainWindow {
         Panel::bottom("action_bar").show(ui, |ui| action_bar(ui, core, &snap));
         Panel::left("profile_list")
             .resizable(false)
-            .exact_size(230.0)
+            .exact_size(250.0)
             .show(ui, |ui| self.profile_list(ui, core, &snap));
         CentralPanel::default().show(ui, |ui| self.center(ui, core, &snap));
 
@@ -113,7 +116,8 @@ impl MainWindow {
         heading(ui, "Aircraft Profiles");
         ui.add_space(4.0);
 
-        let list_height = (ui.available_height() - 44.0).max(60.0);
+        // Leave room for the two rows of buttons below the list.
+        let list_height = (ui.available_height() - 72.0).max(60.0);
         ui.add_enabled_ui(!snap.pop_out_in_progress, |ui| {
             ScrollArea::vertical()
                 .id_salt("profiles_scroll")
@@ -145,32 +149,35 @@ impl MainWindow {
 
         ui.add_space(4.0);
         ui.add_enabled_ui(!snap.pop_out_in_progress, |ui| {
-            ui.horizontal(|ui| {
-                let prev = ui
-                    .add_enabled(snap.profiles.len() > 1, Button::new("◀"))
-                    .tip("Previous profile");
-                if prev.clicked() {
-                    core.move_to_previous_profile();
-                }
-                let next = ui
-                    .add_enabled(snap.profiles.len() > 1, Button::new("▶"))
-                    .tip("Next profile");
-                if next.clicked() {
-                    core.move_to_next_profile();
-                }
-                ui.separator();
-                if ui
-                    .button("Add profile")
+            // Full-width buttons in two columns: the list is too narrow for a single row.
+            let several = snap.profiles.len() > 1;
+            let has_active = snap.active.is_some();
+            ui.columns(2, |cols| {
+                if full_width_button(&mut cols[0], true, "Add profile")
                     .tip("Add a new aircraft profile")
                     .clicked()
                 {
                     self.dialogs.open_add_profile();
                 }
-                let delete = ui
-                    .add_enabled(snap.active.is_some(), Button::new("Delete profile"))
-                    .tip("Delete the selected aircraft profile");
-                if delete.clicked() {
+                if full_width_button(&mut cols[1], has_active, "Delete profile")
+                    .tip("Delete the selected aircraft profile")
+                    .clicked()
+                {
                     self.dialogs.open_delete_profile();
+                }
+            });
+            ui.columns(2, |cols| {
+                if full_width_button(&mut cols[0], several, "◀")
+                    .tip("Previous profile")
+                    .clicked()
+                {
+                    core.move_to_previous_profile();
+                }
+                if full_width_button(&mut cols[1], several, "▶")
+                    .tip("Next profile")
+                    .clicked()
+                {
+                    core.move_to_next_profile();
                 }
             });
         });
@@ -212,6 +219,16 @@ fn can_start_pop_out(profile: &UserProfile, snap: &Snapshot) -> bool {
         && !profile.is_editing_panel_source
         && !snap.pop_out_in_progress
         && snap.sim.in_cockpit
+}
+
+fn full_width_button(ui: &mut Ui, enabled: bool, text: &str) -> Response {
+    // The growing atoms on both sides keep the label centred in the stretched button.
+    ui.add_enabled(
+        enabled,
+        Button::new((Atom::grow(), text, Atom::grow()))
+            .wrap_mode(TextWrapMode::Truncate)
+            .min_size(vec2(ui.available_width(), 24.0)),
+    )
 }
 
 fn action_bar(ui: &mut Ui, core: &Arc<Core>, snap: &Snapshot) {
