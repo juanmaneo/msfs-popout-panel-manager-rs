@@ -3,15 +3,15 @@
 
 use super::snapshot::Snapshot;
 use super::theme;
-use super::widgets::{ResponseExt, heading, toggle_labeled};
+use super::widgets::{ResponseExt, heading, link, toggle_labeled};
 use crate::core::Core;
+use crate::flight_sim::DynamicLodSimData;
 use crate::keybinding::display_binding;
 use crate::model::{AfterPopOutCameraViewType, ApplicationSetting};
 use eframe::egui::{self, Context, DragValue, RichText, ScrollArea, TextEdit, TextStyle, Ui};
 use std::sync::Arc;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 enum Tab {
     #[default]
     General,
@@ -58,8 +58,6 @@ pub struct Preferences {
     open: bool,
     tab: Tab,
 }
-
-
 
 impl Preferences {
     pub fn open(&mut self) {
@@ -166,7 +164,7 @@ impl Preferences {
 
         self.section(ui, "Folder Path to Store POPM Configuration and Profiles");
         let mut use_app_data = core.read(|s| s.settings.general_setting.use_application_data_path);
-        let mut combo = egui::ComboBox::from_id_salt("data_path_choice")
+        egui::ComboBox::from_id_salt("data_path_choice")
             .selected_text(if use_app_data {
                 "AppData Roaming folder"
             } else {
@@ -177,14 +175,10 @@ impl Preferences {
                 ui.selectable_value(&mut use_app_data, false, "Documents folder (Default)");
                 ui.selectable_value(&mut use_app_data, true, "AppData Roaming folder");
             });
-        let _ = &mut combo;
         ui.horizontal_wrapped(|ui| {
             ui.add_space(8.0);
-            ui.label(
-                RichText::new(crate::storage::data_dir(use_app_data).to_string_lossy())
-                    .small()
-                    .weak(),
-            );
+            let path = crate::storage::data_dir(use_app_data);
+            link(ui, &path.to_string_lossy(), &path.to_string_lossy());
         });
         if use_app_data != core.read(|s| s.settings.general_setting.use_application_data_path) {
             core.write(|s| s.settings.general_setting.use_application_data_path = use_app_data);
@@ -259,26 +253,13 @@ impl Preferences {
             ui.indent("auto_panning_key", |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Ctrl-Alt-");
-                    let key =
-                        core.read(|s| s.settings.pop_out_setting.auto_panning.key_binding.clone());
-                    let mut selected = key.clone();
-                    egui::ComboBox::from_id_salt("auto_panning_key")
-                        .selected_text(if selected.is_empty() {
-                            "0".to_string()
-                        } else {
-                            selected.clone()
-                        })
-                        .width(50.0)
-                        .show_ui(ui, |ui| {
-                            for d in 0..=9 {
-                                ui.selectable_value(&mut selected, d.to_string(), d.to_string());
-                            }
-                        });
-                    if !selected.is_empty() && selected != key {
-                        core.write(|s| {
-                            s.settings.pop_out_setting.auto_panning.key_binding = selected
-                        });
-                    }
+                    digit_key_combo(
+                        ui,
+                        core,
+                        "auto_panning_key",
+                        |s| s.pop_out_setting.auto_panning.key_binding.clone(),
+                        |s, key| s.pop_out_setting.auto_panning.key_binding = key,
+                    );
                     ui.label(
                         RichText::new(
                             "Key binding for saving and recalling the custom MSFS cockpit camera \
@@ -327,78 +308,65 @@ impl Preferences {
             |s| s.pop_out_setting.after_pop_out_camera_view.is_enabled,
             |s, v| s.pop_out_setting.after_pop_out_camera_view.is_enabled = v,
         );
-        if core.read(|s| {
-            s.settings
-                .pop_out_setting
-                .after_pop_out_camera_view
-                .is_enabled
-        }) {
+        let camera_view =
+            core.read(|s| s.settings.pop_out_setting.after_pop_out_camera_view.clone());
+        if camera_view.is_enabled {
             ui.indent("camera_view", |ui| {
-                ui.horizontal(|ui| {
-                    let view = core.read(|s| {
+                let mut selected = camera_view.camera_view;
+                egui::ComboBox::from_id_salt("camera_view_type")
+                    .selected_text(match selected {
+                        AfterPopOutCameraViewType::CockpitCenterView => "Cockpit Center View",
+                        AfterPopOutCameraViewType::CustomCameraView => "Custom Camera View",
+                    })
+                    .width(180.0)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut selected,
+                            AfterPopOutCameraViewType::CockpitCenterView,
+                            "Cockpit Center View",
+                        );
+                        ui.selectable_value(
+                            &mut selected,
+                            AfterPopOutCameraViewType::CustomCameraView,
+                            "Custom Camera View",
+                        );
+                    });
+                if selected != camera_view.camera_view {
+                    core.write(|s| {
                         s.settings
                             .pop_out_setting
                             .after_pop_out_camera_view
-                            .camera_view
+                            .camera_view = selected
                     });
-                    let mut selected = view;
-                    egui::ComboBox::from_id_salt("camera_view_type")
-                        .selected_text(match selected {
-                            AfterPopOutCameraViewType::CockpitCenterView => "Cockpit Center View",
-                            AfterPopOutCameraViewType::CustomCameraView => "Custom Camera View",
-                        })
-                        .width(180.0)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut selected,
-                                AfterPopOutCameraViewType::CockpitCenterView,
-                                "Cockpit Center View",
-                            );
-                            ui.selectable_value(
-                                &mut selected,
-                                AfterPopOutCameraViewType::CustomCameraView,
-                                "Custom Camera View",
-                            );
-                        });
-                    if selected != view {
-                        core.write(|s| {
-                            s.settings
-                                .pop_out_setting
-                                .after_pop_out_camera_view
-                                .camera_view = selected
-                        });
-                    }
+                }
 
-                    ui.label("Key (Ctrl-Alt-):");
-                    let key = core.read(|s| {
-                        s.settings
-                            .pop_out_setting
-                            .after_pop_out_camera_view
-                            .key_binding
-                            .clone()
+                if selected == AfterPopOutCameraViewType::CustomCameraView {
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.label("Alt-");
+                        digit_key_combo(
+                            ui,
+                            core,
+                            "camera_key",
+                            |s| {
+                                s.pop_out_setting
+                                    .after_pop_out_camera_view
+                                    .key_binding
+                                    .clone()
+                            },
+                            |s, key| s.pop_out_setting.after_pop_out_camera_view.key_binding = key,
+                        );
+                        ui.label(
+                            RichText::new(
+                                "Configure key binding for custom camera view to load. Requires \
+                                 binding keystroke to custom camera in MSFS control setting. \
+                                 (Default: Alt-1 to load).",
+                            )
+                            .small()
+                            .weak(),
+                        );
                     });
-                    let mut selected = key.clone();
-                    egui::ComboBox::from_id_salt("camera_key")
-                        .selected_text(if selected.is_empty() {
-                            "0".to_string()
-                        } else {
-                            selected.clone()
-                        })
-                        .width(50.0)
-                        .show_ui(ui, |ui| {
-                            for d in 0..=9 {
-                                ui.selectable_value(&mut selected, d.to_string(), d.to_string());
-                            }
-                        });
-                    if !selected.is_empty() && selected != key {
-                        core.write(|s| {
-                            s.settings
-                                .pop_out_setting
-                                .after_pop_out_camera_view
-                                .key_binding = selected
-                        });
-                    }
-                });
+                }
             });
             ui.add_space(10.0);
         }
@@ -650,6 +618,7 @@ impl Preferences {
         }
 
         ui.indent("lod_options", |ui| {
+            sim_values(ui, &core.read(|s| s.sim.dynamic_lod.clone()));
             self.section(ui, "General Options");
             lod_int(
                 ui,
@@ -826,6 +795,54 @@ fn setting_bool(
         core.write(|s| set(&mut s.settings, value));
     }
     ui.add_space(10.0);
+}
+
+/// The read-only "Sim Values" group shown at the top of the Dynamic LOD settings.
+fn sim_values(ui: &mut Ui, sim: &DynamicLodSimData) {
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        ui.label(RichText::new("Sim Values").small());
+        ui.horizontal(|ui| {
+            let values = [
+                ("FPS", sim.fps.to_string()),
+                ("TLOD", sim.tlod.to_string()),
+                ("OLOD", sim.olod.to_string()),
+                ("AGL", format!("{:.0}", sim.agl)),
+                ("Clouds", sim.cloud_quality.clone()),
+            ];
+            for (caption, value) in values {
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(caption).small().weak());
+                    ui.label(RichText::new(value).monospace());
+                });
+                ui.add_space(14.0);
+            }
+        });
+    });
+    ui.add_space(10.0);
+}
+
+/// A 0-9 combo box bound to a key-binding string setting. An empty setting shows as "0".
+fn digit_key_combo(
+    ui: &mut Ui,
+    core: &Arc<Core>,
+    id: &str,
+    get: impl Fn(&ApplicationSetting) -> String,
+    set: impl Fn(&mut ApplicationSetting, String),
+) {
+    let key = core.read(|s| get(&s.settings));
+    let mut selected = key.clone();
+    egui::ComboBox::from_id_salt(id)
+        .selected_text(if key.is_empty() { "0" } else { &key })
+        .width(50.0)
+        .show_ui(ui, |ui| {
+            for digit in 0..=9 {
+                let text = digit.to_string();
+                ui.selectable_value(&mut selected, text.clone(), text);
+            }
+        });
+    if selected != key {
+        core.write(|s| set(&mut s.settings, selected));
+    }
 }
 
 /// One labelled integer application setting with a drag value.

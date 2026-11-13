@@ -1,7 +1,7 @@
 //! Modal dialogs (add profile, confirmations) and the help window.
 
 use super::snapshot::Snapshot;
-use super::widgets::heading;
+use super::widgets::{heading, link};
 use crate::core::Core;
 use eframe::egui::{self, Context, Id, Key, Modal, RichText};
 use std::sync::Arc;
@@ -186,10 +186,10 @@ impl Dialogs {
                 ui.add_space(6.0);
 
                 heading(ui, "Documentation");
-                help_link(ui, "Getting Started", "https://github.com/hawkeye-stan/msfs-popout-panel-manager/blob/master/GETTING_STARTED.md");
-                help_link(ui, "User Guide", "https://github.com/hawkeye-stan/msfs-popout-panel-manager#msfs-pop-out-panel-manager");
-                help_link(ui, "Download Latest GitHub", "https://github.com/hawkeye-stan/msfs-popout-panel-manager/releases");
-                help_link(ui, "Download Latest Flightsim.to", "https://flightsim.to/file/35759/msfs-pop-out-panel-manager");
+                link(ui, "Getting Started", "https://github.com/hawkeye-stan/msfs-popout-panel-manager/blob/master/GETTING_STARTED.md");
+                link(ui, "User Guide", "https://github.com/hawkeye-stan/msfs-popout-panel-manager#msfs-pop-out-panel-manager");
+                link(ui, "Download Latest GitHub", "https://github.com/hawkeye-stan/msfs-popout-panel-manager/releases");
+                link(ui, "Download Latest Flightsim.to", "https://flightsim.to/file/35759/msfs-pop-out-panel-manager");
                 ui.add_space(4.0);
 
                 heading(ui, "Licence");
@@ -211,21 +211,6 @@ impl Dialogs {
                 ui.label("SimConnect.dll must be located next to the executable.");
             });
         self.help_open = open;
-    }
-}
-
-/// A labelled hyperlink that opens with the default Windows browser.
-fn help_link(ui: &mut egui::Ui, label: &str, url: &str) {
-    if ui
-        .add(egui::Button::new(
-            RichText::new(label)
-                .color(ui.visuals().hyperlink_color)
-                .underline(),
-        ))
-        .on_hover_text(url)
-        .clicked()
-    {
-        crate::win::open_externally(url);
     }
 }
 

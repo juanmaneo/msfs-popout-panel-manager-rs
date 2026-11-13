@@ -172,6 +172,24 @@ pub fn heading(ui: &mut Ui, text: &str) {
     ui.label(RichText::new(text).strong().size(15.0));
 }
 
+/// A hyperlink-styled label that opens `target` (a URL, file or folder) with the default
+/// Windows handler when clicked. Failures are logged.
+pub fn link(ui: &mut Ui, label: &str, target: &str) -> Response {
+    let text = RichText::new(label)
+        .color(ui.visuals().hyperlink_color)
+        .underline();
+    let response = ui
+        .add(egui::Button::new(text).frame(false))
+        .on_hover_text(target)
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    if response.clicked()
+        && let Err(e) = crate::win::open_externally(target)
+    {
+        log::error!("{e}");
+    }
+    response
+}
+
 pub trait ResponseExt: Sized {
     /// Tooltip that is also shown while the widget is disabled.
     fn tip(self, text: &str) -> Self;

@@ -85,12 +85,12 @@ pub fn message_box(title: &str, text: &str) {
     }
 }
 
-/// Open a URL (or a file path) with the default Windows handler.
-pub fn open_externally(url: &str) {
+/// Open a URL (or a file / folder path) with the default Windows handler.
+pub fn open_externally(target: &str) -> Result<(), String> {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     let verb = wide("open");
-    let file = wide(url);
-    unsafe {
+    let file = wide(target);
+    let result = unsafe {
         ShellExecuteW(
             std::ptr::null_mut(),
             verb.as_ptr(),
@@ -98,7 +98,16 @@ pub fn open_externally(url: &str) {
             std::ptr::null(),
             std::ptr::null(),
             1, // SW_SHOWNORMAL
-        );
+        )
+    };
+    // ShellExecute reports success with a pseudo-handle greater than 32.
+    let code = result as isize;
+    if code > 32 {
+        Ok(())
+    } else {
+        Err(format!(
+            "could not open {target} (ShellExecute code {code})"
+        ))
     }
 }
 

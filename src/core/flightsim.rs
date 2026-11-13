@@ -23,6 +23,14 @@ fn truthy(v: f64) -> bool {
     v != 0.0
 }
 
+/// Values read straight from the simulator's memory for Dynamic LOD.
+struct MemoryReads {
+    tlod: i32,
+    olod: i32,
+    cloud_quality: String,
+    frame_generation: bool,
+}
+
 impl Core {
     // --- events from the SimConnect thread -------------------------------------------
 
@@ -308,18 +316,21 @@ impl Core {
         rt.last_sample = now;
 
         let rt = &mut *rt;
-        let Some(mem) = rt.mem.as_ref() else { return };
-
-        let tlod = rt.lod.read_tlod(mem);
-        let olod = rt.lod.read_olod(mem);
-        let cloud = rt.lod.read_cloud_quality(mem).to_string();
-        let frame_gen = rt.lod.read_is_fg(mem);
+        // Without simulator memory access the SimConnect values and FPS still update.
+        let reads = rt.mem.as_ref().map(|mem| MemoryReads {
+            tlod: rt.lod.read_tlod(mem),
+            olod: rt.lod.read_olod(mem),
+            cloud_quality: rt.lod.read_cloud_quality(mem).to_string(),
+            frame_generation: rt.lod.read_is_fg(mem),
+        });
         let raw_fps = self.current_fps.load(Ordering::SeqCst);
-        let fps = self
-            .fps
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .average(if frame_gen { raw_fps * 2 } else { raw_fps });
+        let fps = self.fps.lock().unwrap_or_else(|e| e.into_inner()).average(
+            if reads.as_ref().is_some_and(|r| r.frame_generation) {
+                raw_fps * 2
+            } else {
+                raw_fps
+            },
+        );
 
         let sim_data = self.write(|s| {
             let l = &mut s.sim.dynamic_lod;
@@ -328,15 +339,19 @@ impl Core {
             l.alt_above_ground_minus_cg = d.plane_alt_above_ground_minus_cg;
             l.ground_velocity = d.ground_velocity;
             l.plane_on_ground = truthy(d.sim_on_ground);
-            l.tlod = tlod;
-            l.olod = olod;
-            l.cloud_quality = cloud;
+            if let Some(r) = reads {
+                l.tlod = r.tlod;
+                l.olod = r.olod;
+                l.cloud_quality = r.cloud_quality;
+            }
             l.fps = fps;
             l.clone()
         });
 
-        rt.lod
-            .update(mem, &setting, &sim_data, started && in_cockpit, now);
+        if let Some(mem) = rt.mem.as_ref() {
+            rt.lod
+                .update(mem, &setting, &sim_data, started && in_cockpit, now);
+        }
     }
 
     // --- helpers used by workflows (these block; call from worker threads) -------------------
