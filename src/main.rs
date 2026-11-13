@@ -20,7 +20,7 @@ mod hook_plan;
 mod keybinding;
 #[cfg(any(windows, test))]
 mod lod;
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 mod logger;
 #[cfg(any(windows, test))]
 mod model;
@@ -43,6 +43,7 @@ mod win;
 
 #[cfg(windows)]
 fn main() {
+    logger::install_panic_hook();
     win::set_dpi_aware();
 
     if !win::acquire_single_instance("Local\\MSFSPopoutPanelManagerRs-SingleInstance") {

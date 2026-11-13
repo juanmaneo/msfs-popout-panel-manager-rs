@@ -137,19 +137,12 @@ impl Preferences {
                 }
             },
         );
-        setting_bool(
-            ui,
-            core,
-            "Minimize to Tray",
-            "Minimize the application to system tray.",
-            |s| s.general_setting.minimize_to_tray,
-            |s, v| s.general_setting.minimize_to_tray = v,
-        );
+
         setting_bool(
             ui,
             core,
             "Start Minimized",
-            "Start the application in minimized mode in system tray.",
+            "Start the application in minimized mode.",
             |s| s.general_setting.start_minimized,
             |s, v| s.general_setting.start_minimized = v,
         );
@@ -192,14 +185,6 @@ impl Preferences {
             "WARNING! This may not work for all PC. Enable turbo mode to pop out panels as fast as possible.",
             |s| s.general_setting.turbo_mode,
             |s, v| s.general_setting.turbo_mode = v,
-        );
-        setting_bool(
-            ui,
-            core,
-            "Check for Update",
-            "Enable check for application update through Github. (Not implemented in the Rust port.)",
-            |s| s.general_setting.check_for_update,
-            |s, v| s.general_setting.check_for_update = v,
         );
     }
 

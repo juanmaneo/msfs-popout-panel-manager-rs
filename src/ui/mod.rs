@@ -30,7 +30,7 @@ use viewports::{hud_bar, num_pad, status_window};
 pub const MAIN_TITLE: &str = "MSFS Pop Out Panel Manager";
 
 const REPAINT_INTERVAL: Duration = Duration::from_millis(250);
-/// Frames to wait before honouring "start minimized" so the window is shown first.
+/// Frame on which "start minimized" is honoured, so the window has been shown first.
 const START_MINIMIZED_FRAME: u32 = 3;
 
 struct App {
@@ -38,8 +38,8 @@ struct App {
     main_window: MainWindow,
     app_hwnd_registered: bool,
     applied_always_on_top: Option<bool>,
-    applied_minimize_to_tray: bool,
-    ui_frames: u32,
+    was_minimized: bool,
+    logic_frames: u32,
     hud_timer: Arc<Mutex<hud_bar::HudTimer>>,
 }
 
@@ -50,44 +50,29 @@ impl App {
             main_window: MainWindow::default(),
             app_hwnd_registered: false,
             applied_always_on_top: None,
-            applied_minimize_to_tray: false,
-            ui_frames: 0,
+            was_minimized: false,
+            logic_frames: 0,
             hud_timer: Arc::default(),
         }
     }
 
     /// Everything that must keep working while the main window is minimized (no `ui` pass).
     fn sync_main_window(&mut self, ctx: &egui::Context) {
-        let (always_on_top, exit_requested, minimize_to_tray, start_minimized) =
-            self.core.read(|s| {
-                (
-                    s.settings.general_setting.always_on_top,
-                    s.ui.exit_requested,
-                    s.settings.general_setting.minimize_to_tray,
-                    s.settings.general_setting.start_minimized,
-                )
-            });
+        let (always_on_top, exit_requested, start_minimized) = self.core.read(|s| {
+            (
+                s.settings.general_setting.always_on_top,
+                s.ui.exit_requested,
+                s.settings.general_setting.start_minimized,
+            )
+        });
 
         if exit_requested {
             ctx.send_viewport_cmd(ViewportCommand::Close);
         }
 
-        // "Minimize to tray": while minimized the window is hidden from the taskbar
-        // (the tray icon itself is not ported; the app keeps running in `logic`).
-        let minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
-        if minimize_to_tray && minimized != self.applied_minimize_to_tray {
-            self.applied_minimize_to_tray = minimized;
-            if minimized {
-                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
-            } else {
-                ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-            }
-        }
-        // "Start minimized": hide right after startup so the window never flashes.
-        if start_minimized
-            && !self.applied_minimize_to_tray
-            && self.ui_frames < START_MINIMIZED_FRAME
-        {
+        // "Start minimized" (to the taskbar: the tray icon is not ported).
+        self.logic_frames = self.logic_frames.saturating_add(1);
+        if start_minimized && self.logic_frames == START_MINIMIZED_FRAME {
             ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
         }
 
@@ -97,6 +82,17 @@ impl App {
             self.core.set_app_hwnd(hwnd);
             self.app_hwnd_registered = true;
         }
+
+        // Windows can drop the topmost state of a window that was minimized; re-apply it on
+        // restore like upstream's `AppWindow_StateChanged`.
+        let minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
+        if self.was_minimized && !minimized && always_on_top {
+            let hwnd = self.core.app_hwnd();
+            if hwnd != 0 {
+                window::apply_always_on_top(hwnd, true);
+            }
+        }
+        self.was_minimized = minimized;
 
         if self.applied_always_on_top != Some(always_on_top) {
             self.applied_always_on_top = Some(always_on_top);
@@ -166,8 +162,6 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         ctx.request_repaint_after(REPAINT_INTERVAL);
-
-        self.ui_frames = self.ui_frames.saturating_add(1);
 
         self.main_window
             .show(ui, &self.core, &mut || self.core.toggle_status_window());
