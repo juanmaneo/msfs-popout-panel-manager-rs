@@ -4,10 +4,10 @@ This is a Rust port of the [MSFS Pop Out Panel Manager](https://github.com/hawke
 
 ## About This Port
 
-This is a complete rewrite of the original C#/WPF application in Rust, maintaining full feature compatibility with the original application (except for auto-updater, tray icon, and help extras).
+This is a complete rewrite of the original C#/WPF application in Rust, maintaining full feature compatibility with the original application (except for the auto-updater, tray icon, VCC library download and .NET app-cache cleanup).
 
 ### Key Features
-- ✅ Full feature parity with the original application (except auto-updater, tray icon, and help extras)
+- ✅ Full feature parity with the original application (except the auto-updater, tray icon, VCC library download and .NET app-cache cleanup)
 - ✅ Data file compatibility with the original JSON files (`userprofiledata.json` / `appsettingdata.json`)
 - ✅ Cross-platform design (though currently only Windows is supported due to SimConnect dependency and using MSFS on Linux or BSD via proton/wine is adventurous)
 - ✅ Modern Rust codebase with improved error handling and memory safety
@@ -30,7 +30,11 @@ This is a complete rewrite of the original C#/WPF application in Rust, maintaini
 
 - **Auto Updater**: Not implemented in this port
 - **Tray Icon**: Not implemented in this port
-- **Help Extras**: Some help features from the original are not implemented
+- **VCC Library Download / .NET Cache Cleanup**: Not applicable to a native binary
+- **Help**: Keyboard commands, user guide / release / support links and About (with licence) are ported; the in-app release notes (`VERSION.md`) are not
+- **Panel overlay**: The blinking ring is not drawn - upstream declares `IsShownPanelSource` but never sets it
+- **Panel reordering**: Up/down buttons instead of drag and drop
+- **Logging**: Errors only, to `error.log` (rolling, 25 MB x 5), plus a panic hook
 - **UI Framework**: Uses egui instead of WPF for the user interface
 
 ## License

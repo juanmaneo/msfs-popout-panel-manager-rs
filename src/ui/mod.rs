@@ -19,7 +19,7 @@ mod theme;
 mod viewports;
 mod widgets;
 
-use crate::core::Core;
+use crate::core::{Core, MessageKind};
 use crate::win::window;
 use eframe::egui::{self, ViewportCommand, WindowLevel};
 use main_window::MainWindow;
@@ -40,6 +40,8 @@ struct App {
     applied_always_on_top: Option<bool>,
     was_minimized: bool,
     logic_frames: u32,
+    /// Where the pop out message window goes, computed once per message.
+    message_anchor: Option<(MessageKind, Option<egui::Pos2>)>,
     hud_timer: Arc<Mutex<hud_bar::HudTimer>>,
 }
 
@@ -52,8 +54,34 @@ impl App {
             applied_always_on_top: None,
             was_minimized: false,
             logic_frames: 0,
+            message_anchor: None,
             hud_timer: Arc::default(),
         }
+    }
+
+    /// Top-left of the message window, centred on the simulator window (upstream
+    /// `CenterDialogToGameWindow`). Computed when the message appears so the window does
+    /// not jump around while it is shown.
+    fn message_position(&mut self, ctx: &egui::Context, kind: MessageKind) -> Option<egui::Pos2> {
+        if let Some((k, pos)) = self.message_anchor
+            && k == kind
+        {
+            return pos;
+        }
+        let ppp = ctx.pixels_per_point();
+        let pos = window::msfs_game_window().and_then(|h| {
+            let r = window::rect_dwm(h);
+            if r.width <= 0 || r.height <= 0 {
+                return None;
+            }
+            let size = status_window::message_size(kind);
+            Some(egui::pos2(
+                (r.x as f32 + r.width as f32 / 2.0) / ppp - size.x / 2.0,
+                (r.y as f32 + r.height as f32 / 2.0) / ppp - size.y / 2.0,
+            ))
+        });
+        self.message_anchor = Some((kind, pos));
+        pos
     }
 
     /// Everything that must keep working while the main window is minimized (no `ui` pass).
@@ -153,9 +181,18 @@ impl eframe::App for App {
 
         // The status window shows progress messages while a pop out / source edit runs
         // (upstream MessageWindow), and can also be opened manually from the header.
-        let show_status = core.read(|s| s.ui.status_open || s.ui.message.is_some());
-        if show_status {
-            status_window::show(ctx, core.clone());
+        let (status_open, message) = core.read(|s| (s.ui.status_open, s.ui.message));
+        match (status_open, message) {
+            (true, _) => status_window::show(ctx, core.clone(), status_window::View::Manual),
+            (false, Some(kind)) => {
+                let position = self.message_position(ctx, kind);
+                status_window::show(
+                    ctx,
+                    core.clone(),
+                    status_window::View::Message { kind, position },
+                );
+            }
+            (false, None) => self.message_anchor = None,
         }
     }
 

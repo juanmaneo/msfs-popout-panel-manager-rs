@@ -12,6 +12,8 @@ use ffi::{Connection, Dispatch, Recv, SimConnectLib};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::{Duration, Instant};
 
+const SIM_RATE_SETTLE_MS: u64 = 200;
+
 const APP_NAME: &str = "MSFS Pop Out Panel Manager";
 const CONNECT_RETRY: Duration = Duration::from_millis(2000);
 const REQUIRED_INTERVAL: Duration = Duration::from_millis(500);
@@ -267,6 +269,11 @@ fn session(
                         "SimConnect: unable to transmit {}: 0x{hr:08X}",
                         evt.sim_name()
                     );
+                }
+                // Upstream waits after each sim rate change so rapid clicks cannot overshoot
+                // before the new rate is read back.
+                if matches!(evt, ActionEvent::SimRateIncr | ActionEvent::SimRateDecr) {
+                    std::thread::sleep(Duration::from_millis(SIM_RATE_SETTLE_MS));
                 }
             }
             Ok(SimCmd::HudBar(t)) => {
