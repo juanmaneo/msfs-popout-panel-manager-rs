@@ -110,15 +110,26 @@ pub fn read_app_setting() -> Option<ApplicationSetting> {
     Some(s)
 }
 
-/// Write profiles + settings to the location selected by the settings, removing stale
-/// copies from the other location when the data path changed.
-pub fn move_data(setting: &ApplicationSetting, profiles: &[UserProfile]) {
+/// Write profiles + settings to the location selected by the settings, then remove the
+/// whole folder of the previous location (upstream deletes it recursively, logs included).
+pub fn move_data(setting: &ApplicationSetting, profiles: &[UserProfile]) -> std::io::Result<()> {
     let roaming = setting.general_setting.use_application_data_path;
-    let _ = write_profiles_to(&data_dir(roaming), profiles);
-    let _ = write_app_setting_to(&data_dir(roaming), setting);
-    let old = data_dir(!roaming);
-    let _ = std::fs::remove_file(old.join(USER_PROFILE_FILE));
-    let _ = std::fs::remove_file(old.join(APP_SETTING_FILE));
+    move_data_between(&data_dir(!roaming), &data_dir(roaming), setting, profiles)
+}
+
+fn move_data_between(
+    old: &Path,
+    new: &Path,
+    setting: &ApplicationSetting,
+    profiles: &[UserProfile],
+) -> std::io::Result<()> {
+    write_profiles_to(new, profiles)?;
+    write_app_setting_to(new, setting)?;
+    if old != new && old.exists() {
+        std::fs::remove_dir_all(old)
+            .map_err(|e| std::io::Error::new(e.kind(), format!("{}: {e}", old.display())))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -176,6 +187,28 @@ mod tests {
             Some("A|B")
         );
         std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn moving_data_removes_the_whole_old_folder() {
+        let root = temp_dir();
+        let (old, new) = (root.join("old"), root.join("new"));
+        std::fs::create_dir_all(old.join("LogFiles")).unwrap();
+        std::fs::write(old.join("LogFiles").join("error.log"), "x").unwrap();
+        std::fs::write(old.join(USER_PROFILE_FILE), "{}").unwrap();
+
+        let mut setting = ApplicationSetting::default();
+        setting.dynamic_lod_setting.targeted_fps = 33;
+        move_data_between(&old, &new, &setting, &[UserProfile::new("a")]).unwrap();
+
+        assert!(!old.exists());
+        assert_eq!(read_profiles_from(&new).len(), 1);
+        assert!(new.join(APP_SETTING_FILE).exists());
+
+        // moving onto itself must never delete the data
+        move_data_between(&new, &new, &setting, &[UserProfile::new("a")]).unwrap();
+        assert_eq!(read_profiles_from(&new).len(), 1);
+        std::fs::remove_dir_all(root).ok();
     }
 
     #[test]

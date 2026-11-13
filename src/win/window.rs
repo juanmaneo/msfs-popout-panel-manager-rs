@@ -10,13 +10,16 @@ use windows_sys::Win32::Graphics::Dwm::{
 use windows_sys::Win32::Graphics::Gdi::{
     EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW,
 };
-use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+use windows_sys::Win32::System::Threading::{
+    AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GWL_STYLE, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
-    GetWindowPlacement, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, HWND_NOTOPMOST,
-    HWND_TOPMOST, IsIconic, MoveWindow, PostMessageW, SW_MINIMIZE, SW_RESTORE, SWP_NOMOVE,
-    SWP_NOSIZE, SetCursorPos, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW,
-    ShowWindow, ShowWindowAsync, WINDOWPLACEMENT, WM_CLOSE, WS_CAPTION, WS_SIZEBOX,
+    BringWindowToTop, EnumWindows, GWL_STYLE, GetClassNameW, GetCursorPos, GetForegroundWindow,
+    GetWindowLongPtrW, GetWindowPlacement, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId,
+    HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, MoveWindow, PostMessageW, SW_MINIMIZE, SW_RESTORE,
+    SW_SHOW, SWP_NOMOVE, SWP_NOSIZE, SetCursorPos, SetForegroundWindow, SetWindowLongPtrW,
+    SetWindowPos, SetWindowTextW, ShowWindow, ShowWindowAsync, WINDOWPLACEMENT, WM_CLOSE,
+    WS_CAPTION, WS_SIZEBOX,
 };
 use windows_sys::core::BOOL;
 
@@ -255,6 +258,27 @@ pub fn set_foreground(h: isize) {
     }
 }
 
+/// Port of `WindowActionManager.SetWindowFocus`: give one of our own windows focus even
+/// while another application (the simulator) owns the foreground, by temporarily sharing
+/// input state with the foreground thread. Must be called on the window's own thread.
+pub fn set_window_focus(h: isize) {
+    unsafe {
+        let hwnd = to_hwnd(h);
+        let foreground_thread =
+            GetWindowThreadProcessId(GetForegroundWindow(), std::ptr::null_mut());
+        let own_thread = GetCurrentThreadId();
+        let attach = foreground_thread != 0 && foreground_thread != own_thread;
+        if attach {
+            AttachThreadInput(foreground_thread, own_thread, 1);
+        }
+        BringWindowToTop(hwnd);
+        ShowWindow(hwnd, SW_SHOW);
+        if attach {
+            AttachThreadInput(foreground_thread, own_thread, 0);
+        }
+    }
+}
+
 pub fn set_title_bar_color(h: isize, hex: &str) {
     if let Ok(color) = i32::from_str_radix(hex.trim().trim_start_matches('#'), 16) {
         unsafe {
@@ -337,23 +361,26 @@ pub fn is_msfs_windowed() -> bool {
 
 pub fn msfs_game_window_location() -> MsfsGameWindowConfig {
     if is_msfs_windowed()
-        && let Some(h) = msfs_game_window() {
-            let r = rect_dwm(h);
-            return MsfsGameWindowConfig {
-                left: r.x,
-                top: r.y,
-                width: r.width,
-                height: r.height,
-            };
-        }
+        && let Some(h) = msfs_game_window()
+    {
+        let r = rect_dwm(h);
+        return MsfsGameWindowConfig {
+            left: r.x,
+            top: r.y,
+            width: r.width,
+            height: r.height,
+        };
+    }
     MsfsGameWindowConfig::default()
 }
 
 pub fn set_msfs_game_window_location(cfg: &MsfsGameWindowConfig) {
-    if is_msfs_windowed() && cfg.is_valid()
-        && let Some(h) = msfs_game_window() {
-            move_window_raw(h, cfg.left, cfg.top, cfg.width, cfg.height);
-        }
+    if is_msfs_windowed()
+        && cfg.is_valid()
+        && let Some(h) = msfs_game_window()
+    {
+        move_window_raw(h, cfg.left, cfg.top, cfg.width, cfg.height);
+    }
 }
 
 pub fn is_msfs_in_focus() -> bool {

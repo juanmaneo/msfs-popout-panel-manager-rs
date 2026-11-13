@@ -456,8 +456,11 @@ impl AutoSaver {
         };
 
         if roaming != self.roaming {
-            storage::move_data(&settings, &profiles);
+            // Point the logger at the new folder first so it cannot recreate the old one.
             crate::logger::set_dir(storage::log_dir(roaming));
+            if let Err(e) = storage::move_data(&settings, &profiles) {
+                log::error!("Unable to move POPM data folder. {e}");
+            }
         } else {
             let dir = storage::data_dir(roaming);
             if profiles_json != self.profiles_json

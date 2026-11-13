@@ -39,6 +39,7 @@ struct App {
     app_hwnd_registered: bool,
     applied_always_on_top: Option<bool>,
     was_minimized: bool,
+    pointer_inside: bool,
     logic_frames: u32,
     /// Where the pop out message window goes, computed once per message.
     message_anchor: Option<(MessageKind, Option<egui::Pos2>)>,
@@ -53,6 +54,7 @@ impl App {
             app_hwnd_registered: false,
             applied_always_on_top: None,
             was_minimized: false,
+            pointer_inside: false,
             logic_frames: 0,
             message_anchor: None,
             hud_timer: Arc::default(),
@@ -121,6 +123,17 @@ impl App {
             }
         }
         self.was_minimized = minimized;
+
+        // Upstream `AppMainWindow` gives the window focus when the mouse enters it, so the
+        // first click is not lost to an always-on-top window sitting over the simulator.
+        let pointer_inside = ctx.input(|i| i.pointer.has_pointer());
+        if pointer_inside && !self.pointer_inside && !minimized {
+            let hwnd = self.core.app_hwnd();
+            if hwnd != 0 && window::foreground_window() != hwnd {
+                window::set_window_focus(hwnd);
+            }
+        }
+        self.pointer_inside = pointer_inside;
 
         if self.applied_always_on_top != Some(always_on_top) {
             self.applied_always_on_top = Some(always_on_top);
