@@ -26,6 +26,8 @@ This is a complete rewrite of the original C#/WPF application in Rust, maintaini
 3. Run `cargo build --release --target x86_64-pc-windows-gnu`
 4. The executable will be in `target/x86_64-pc-windows-gnu/release/`
 
+See [TESTING.md](TESTING.md) for the test commands and the manual test log.
+
 ## Differences from the Original
 
 - **Auto Updater**: Not implemented in this port
