@@ -6,6 +6,7 @@
 
 use crate::core::{Core, MessageKind};
 use crate::status::StatusMessageType;
+use crate::ui::theme;
 use eframe::egui::{self, Color32, RichText, ScrollArea, TextStyle};
 use std::sync::Arc;
 
@@ -39,10 +40,9 @@ pub fn message_size(kind: MessageKind) -> egui::Vec2 {
 fn color_of(kind: StatusMessageType) -> Color32 {
     match kind {
         StatusMessageType::Info => Color32::WHITE,
-        // Upstream LimeGreen / IndianRed / NavajoWhite.
-        StatusMessageType::Success => Color32::from_rgb(50, 205, 50),
-        StatusMessageType::Failure => Color32::from_rgb(205, 92, 92),
-        StatusMessageType::Executing => Color32::from_rgb(255, 222, 173),
+        StatusMessageType::Success => theme::LIME_GREEN,
+        StatusMessageType::Failure => theme::INDIAN_RED,
+        StatusMessageType::Executing => theme::NAVAJO_WHITE,
     }
 }
 

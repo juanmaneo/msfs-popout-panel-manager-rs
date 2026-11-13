@@ -25,7 +25,19 @@ pub fn parse_hex_color(text: &str) -> Option<Color32> {
     u32::from_str_radix(digits, 16).ok().map(rgb)
 }
 
+/// egui's proportional font lacks the arrow glyphs the UI uses (`◀ ▶ ▲ ▼`), and without the
+/// `system_fonts` feature there is no OS fallback, so fall back to the bundled monospace
+/// font, which has them.
+fn fonts() -> egui::FontDefinitions {
+    let mut fonts = egui::FontDefinitions::default();
+    if let Some(proportional) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        proportional.push("Hack".to_owned());
+    }
+    fonts
+}
+
 pub fn apply(ctx: &egui::Context) {
+    ctx.set_fonts(fonts());
     ctx.set_theme(ThemePreference::Dark);
     ctx.style_mut_of(Theme::Dark, |style| {
         style.spacing.item_spacing = vec2(8.0, 6.0);
@@ -49,4 +61,17 @@ pub fn card_frame(fill: Color32, border: Color32) -> egui::Frame {
         .stroke(Stroke::new(1.0, border))
         .corner_radius(6)
         .inner_margin(Margin::same(10))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn symbol_font_is_a_proportional_fallback() {
+        let fonts = fonts();
+        let proportional = &fonts.families[&egui::FontFamily::Proportional];
+        assert!(proportional.iter().any(|f| f == "Hack"));
+        assert!(fonts.font_data.contains_key("Hack"));
+    }
 }
