@@ -30,6 +30,19 @@ fn select_source(profile: &mut UserProfile, panel_id: Uuid) -> bool {
     }
 }
 
+/// Mark `panel_id` as the panel waiting for its source click. Like upstream, starting again while
+/// a selection is pending simply re-targets it.
+fn begin_selection(profile: &mut UserProfile, panel_id: Uuid, legacy_camera: bool) {
+    profile.is_selecting_panel_source = true;
+    if let Some(c) = profile.panel_mut(panel_id) {
+        if legacy_camera {
+            c.is_selected_panel_source = true;
+        } else {
+            c.is_editing_panel = true;
+        }
+    }
+}
+
 /// Fixed camera choices offered for a panel (`GetFixedCameraConfigs`).
 pub fn fixed_camera_configs(instrument_count: i32) -> Vec<FixedCameraConfig> {
     let mut v = vec![
@@ -116,21 +129,10 @@ impl Core {
             self.show_panel_source_for_edit(panel_id);
         }
         self.write(|s| {
-            let Some(p) = s.active_profile_mut() else {
-                return;
-            };
-            if p.is_selecting_panel_source {
-                return;
+            if let Some(p) = s.active_profile_mut() {
+                begin_selection(p, panel_id, legacy_camera);
+                s.selecting_panel = Some(panel_id);
             }
-            p.is_selecting_panel_source = true;
-            if let Some(c) = p.panel_mut(panel_id) {
-                if legacy_camera {
-                    c.is_selected_panel_source = true;
-                } else {
-                    c.is_editing_panel = true;
-                }
-            }
-            s.selecting_panel = Some(panel_id);
         });
     }
 
@@ -469,6 +471,19 @@ mod tests {
             .map(|c| c.is_selected_panel_source)
             .collect();
         assert_eq!(selected, [false, true]);
+    }
+
+    #[test]
+    fn beginning_a_selection_marks_the_panel_for_the_camera_system_in_use() {
+        let (mut p, first, second) = profile_with_two_custom_panels();
+        begin_selection(&mut p, first, false);
+        assert!(p.is_selecting_panel_source);
+        assert!(p.panel(first).is_some_and(|c| c.is_editing_panel));
+        assert!(p.panel(first).is_some_and(|c| !c.is_selected_panel_source));
+
+        begin_selection(&mut p, second, true);
+        assert!(p.is_selecting_panel_source);
+        assert!(p.panel(second).is_some_and(|c| c.is_selected_panel_source));
     }
 
     #[test]
