@@ -14,6 +14,7 @@ mod panel_card;
 mod preferences;
 mod profile_card;
 mod snapshot;
+mod source_card;
 mod theme;
 mod viewports;
 mod widgets;

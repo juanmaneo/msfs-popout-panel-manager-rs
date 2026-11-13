@@ -1,9 +1,11 @@
 //! One card per pop out panel (port of `PopOutPanelConfigCard.xaml`): name, position/size,
-//! display toggles, floating panel section and reorder/delete controls.
+//! display toggles, floating panel section and reorder/delete controls. While the panel sources
+//! are edited the list shows source cards instead (see `source_card`).
 
 use super::dialogs::Dialogs;
 use super::edit;
 use super::snapshot::Snapshot;
+use super::source_card;
 use super::theme;
 use super::widgets::{Icon, ResponseExt, heading, icon_button, toggle_labeled};
 use crate::core::Core;
@@ -37,22 +39,26 @@ pub fn show_list(
         .show(ui, |ui| {
             let count = profile.panel_configs.len();
             for (index, panel) in profile.panel_configs.iter().enumerate() {
-                let mut ctx = CardCtx {
-                    core,
-                    snap,
-                    profile,
-                    index,
-                    count,
-                    dialogs,
-                };
-                show_panel_card(ui, &mut ctx, panel);
+                if profile.is_editing_panel_source {
+                    source_card::show(ui, core, snap, profile, panel);
+                } else {
+                    let mut ctx = CardCtx {
+                        core,
+                        snap,
+                        profile,
+                        index,
+                        count,
+                        dialogs,
+                    };
+                    show_panel_card(ui, &mut ctx, panel);
+                }
                 ui.add_space(6.0);
             }
         });
 }
 
 /// Apply one changed persisted panel property to the core and notify the live window.
-fn set_panel_field(
+pub(super) fn set_panel_field(
     core: &Arc<Core>,
     profile_id: Uuid,
     panel_id: Uuid,
@@ -81,10 +87,7 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
     let index = ctx.index;
     let count = ctx.count;
     let is_popped_out = profile.is_popped_out;
-    let is_locked = profile.is_locked;
-    let is_editing = profile.is_editing_panel_source;
-    let is_selecting = snap.selecting_panel == Some(panel.id);
-    let editable = !is_locked && !is_editing && !is_selecting;
+    let editable = !profile.is_locked;
     let id = panel.id;
     let profile_id = profile.id;
 
@@ -109,7 +112,7 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
             );
             if response.changed() {
                 set_panel_field(core, profile_id, id, PanelProp::PanelName, |p| {
-                    p.panel_name = name.clone()
+                    p.panel_name = name
                 });
             }
 
@@ -148,34 +151,12 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
             ui.separator();
 
             ui.vertical(|ui| {
-                display_options_section(ui, core, snap, profile_id, panel, editable);
+                display_options_section(ui, core, profile_id, panel, editable);
             });
         });
 
         floating_section(ui, core, profile_id, panel, editable);
 
-        if is_selecting {
-            ui.horizontal(|ui| {
-                ui.colored_label(
-                    theme::ACCENT,
-                    "Click the panel source location in the game...",
-                );
-                if ui.button("Cancel").clicked() {
-                    core.cancel_panel_selection();
-                }
-            });
-        } else if panel.is_custom_pop_out() && !panel.has_panel_source() && editable {
-            ui.horizontal(|ui| {
-                ui.colored_label(theme::NAVAJO_WHITE, "Panel source not identified.");
-                if ui
-                    .add_enabled(snap.sim.in_cockpit, egui::Button::new("Identify source"))
-                    .tip("Click the panel location in the cockpit to set the panel source")
-                    .clicked()
-                {
-                    core.start_panel_selection(id, profile.is_used_legacy_camera_system);
-                }
-            });
-        }
         if panel.has_panel_source() {
             ui.label(
                 RichText::new(format!("Source: {}", panel.source_coordinate_text()))
@@ -185,9 +166,6 @@ fn show_panel_card(ui: &mut Ui, ctx: &mut CardCtx<'_>, panel: &PanelConfig) {
         }
         if panel.is_pop_out_success() == Some(false) {
             ui.colored_label(theme::INDIAN_RED, pop_out_failure_text(panel));
-        }
-        if !panel.has_panel_source() && panel.is_custom_pop_out() {
-            ui.colored_label(theme::NAVAJO_WHITE, "Please identify panel source");
         }
         if panel.floating_panel.is_enabled {
             ui.colored_label(theme::LIME_GREEN, "Floating panel enabled");
@@ -247,31 +225,17 @@ fn position_size_section(
         row(ui, "Width:", panel.width, PanelProp::Width, |p, v| p.width = v, !is_hud && !is_refocus);
         row(ui, "Height:", panel.height, PanelProp::Height, |p, v| p.height = v, !is_hud && !is_refocus);
 
-        // Move/resize mode + camera preview
-        ui.horizontal(|ui| {
-            if !is_refocus {
-                let mut moving = panel.is_editing_panel;
-                let can_move_resize = can_move_resize(panel, snap, is_popped_out);
-                let r = ui.add_enabled_ui(can_move_resize || moving, |ui| {
-                    toggle_labeled(ui, &mut moving, "Move/Resize")
-                        .tip("Enable keyboard move/resize: arrow keys move the panel (Shift = 1px), Ctrl+arrows resize")
-                });
-                if r.inner.changed() {
-                    core.set_move_resize(id, moving);
-                }
+        if !is_refocus {
+            let mut moving = panel.is_editing_panel;
+            let can_move_resize = can_move_resize(panel, snap, is_popped_out);
+            let r = ui.add_enabled_ui(can_move_resize || moving, |ui| {
+                toggle_labeled(ui, &mut moving, "Move/Resize")
+                    .tip("Enable keyboard move/resize: arrow keys move the panel (Shift = 1px), Ctrl+arrows resize")
+            });
+            if r.inner.changed() {
+                core.set_move_resize(id, moving);
             }
-            let cam = ui
-                .add_enabled(
-                    is_popped_out && !is_refocus,
-                    egui::Button::new("Camera"),
-                )
-                .tip("Show the camera view of this panel in the simulator");
-            if cam.clicked() {
-                core.set_camera_for_panel(id);
-            }
-        });
-
-        camera_picker(ui, core, snap, profile_id, panel, editable);
+        }
     });
 }
 
@@ -289,61 +253,9 @@ fn can_move_resize(panel: &PanelConfig, snap: &Snapshot, is_popped_out: bool) ->
         && !another_panel_moving
 }
 
-/// Fixed camera chooser shown while a custom panel source is being identified
-/// (upstream `PanelTargetField.xaml` combo + prev/next buttons).
-fn camera_picker(
-    ui: &mut Ui,
-    core: &Arc<Core>,
-    snap: &Snapshot,
-    profile_id: Uuid,
-    panel: &PanelConfig,
-    editable: bool,
-) {
-    if !panel.is_custom_pop_out() {
-        return;
-    }
-    let id = panel.id;
-    ui.add_enabled_ui(editable, |ui| {
-        ui.label("Camera:");
-        let configs = crate::core::fixed_camera_configs(snap.sim.instrument_count);
-        let selected = configs
-            .iter()
-            .find(|c| {
-                c.camera_type == panel.fixed_camera_config.camera_type
-                    && c.camera_index == panel.fixed_camera_config.camera_index
-            })
-            .cloned()
-            .unwrap_or_else(|| panel.fixed_camera_config.clone());
-        let mut chosen = selected.clone();
-        let combo = egui::ComboBox::from_id_salt(format!("camera_{id}"))
-            .selected_text(&selected.name)
-            .width(160.0);
-        combo.show_ui(ui, |ui| {
-            for cfg in &configs {
-                ui.selectable_value(&mut chosen, cfg.clone(), &cfg.name);
-            }
-        });
-        if chosen.camera_type != selected.camera_type
-            || chosen.camera_index != selected.camera_index
-        {
-            edit::panel(core, profile_id, id, |p| {
-                p.fixed_camera_config = chosen.clone()
-            });
-            // preview the new camera in the simulator
-            core.set_camera_for_panel(id);
-        }
-        ui.label(
-            RichText::new("Camera used to view the panel source during pop out")
-                .small()
-                .weak(),
-        );
-    });
-}
-
 fn display_options_section(
     ui: &mut Ui,
     core: &Arc<Core>,
-    snap: &Snapshot,
     profile_id: Uuid,
     panel: &PanelConfig,
     editable: bool,
@@ -402,8 +314,6 @@ fn display_options_section(
             PanelProp::AutoGameRefocus,
             |p, v| p.auto_game_refocus = v,
         );
-
-        let _ = snap;
     });
 }
 

@@ -3,7 +3,7 @@
 
 use super::{Core, MessageKind};
 use crate::flight_sim::{CAMERA_VIEW_CUSTOM_CAMERA, CAMERA_VIEW_HOME_COCKPIT_MODE};
-use crate::model::{CameraType, FixedCameraConfig, PanelType, color_rgb};
+use crate::model::{CameraType, FixedCameraConfig, PanelType, UserProfile, color_rgb};
 use crate::win::hooks::HookCmd;
 use crate::win::overlay::OverlaySpec;
 use crate::win::{input, window};
@@ -13,6 +13,21 @@ use uuid::Uuid;
 
 fn sleep(ms: u64) {
     std::thread::sleep(Duration::from_millis(ms));
+}
+
+/// Clear every panel's source selection, then select `panel_id` if it is a custom panel that
+/// already has a source. Returns whether the panel ended up selected.
+fn select_source(profile: &mut UserProfile, panel_id: Uuid) -> bool {
+    for c in &mut profile.panel_configs {
+        c.is_selected_panel_source = false;
+    }
+    match profile.panel_mut(panel_id) {
+        Some(c) if c.is_custom_pop_out() && c.has_panel_source() => {
+            c.is_selected_panel_source = true;
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Fixed camera choices offered for a panel (`GetFixedCameraConfigs`).
@@ -77,6 +92,21 @@ impl Core {
         });
         if has_source == Some(true) {
             self.show_overlay(panel_id, true);
+        }
+    }
+
+    /// A source card was clicked: highlight that panel's source marker and show only it.
+    /// Needs the cockpit view, like the upstream `EditPanelSourceCommand`.
+    pub fn select_panel_source_for_edit(&self, panel_id: Uuid) {
+        let selected = self.write(|s| {
+            if !s.sim.is_in_cockpit {
+                return false;
+            }
+            s.active_profile_mut()
+                .is_some_and(|p| select_source(p, panel_id))
+        });
+        if selected {
+            self.show_panel_source_for_edit(panel_id);
         }
     }
 
@@ -416,6 +446,42 @@ impl Core {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn profile_with_two_custom_panels() -> (UserProfile, Uuid, Uuid) {
+        let mut p = UserProfile::new("test");
+        let first = p.add_custom_panel();
+        let second = p.add_custom_panel();
+        (p, first, second)
+    }
+
+    #[test]
+    fn selecting_a_source_deselects_the_others() {
+        let (mut p, first, second) = profile_with_two_custom_panels();
+        for c in &mut p.panel_configs {
+            c.panel_source.x = Some(10);
+            c.panel_source.y = Some(20);
+        }
+        assert!(select_source(&mut p, first));
+        assert!(select_source(&mut p, second));
+        let selected: Vec<bool> = p
+            .panel_configs
+            .iter()
+            .map(|c| c.is_selected_panel_source)
+            .collect();
+        assert_eq!(selected, [false, true]);
+    }
+
+    #[test]
+    fn a_panel_without_source_is_not_selected_but_clears_the_rest() {
+        let (mut p, first, second) = profile_with_two_custom_panels();
+        if let Some(c) = p.panel_mut(first) {
+            c.panel_source.x = Some(1);
+            c.is_selected_panel_source = true;
+        }
+        assert!(!select_source(&mut p, second));
+        assert!(p.panel_configs.iter().all(|c| !c.is_selected_panel_source));
+        assert!(!select_source(&mut p, Uuid::new_v4()));
+    }
 
     #[test]
     fn fixed_camera_list_matches_instrument_count() {

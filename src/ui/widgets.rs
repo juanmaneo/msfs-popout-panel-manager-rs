@@ -9,7 +9,10 @@ use eframe::egui::{
 pub enum Icon {
     Up,
     Down,
+    Left,
+    Right,
     Close,
+    Crosshair,
 }
 
 pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
@@ -39,9 +42,39 @@ pub fn paint_icon(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 Stroke::NONE,
             ));
         }
+        Icon::Left => {
+            painter.add(Shape::convex_polygon(
+                vec![
+                    pos2(c.x + r * 0.6, c.y - r),
+                    pos2(c.x + r * 0.6, c.y + r),
+                    pos2(c.x - r * 0.8, c.y),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        }
+        Icon::Right => {
+            painter.add(Shape::convex_polygon(
+                vec![
+                    pos2(c.x - r * 0.6, c.y - r),
+                    pos2(c.x - r * 0.6, c.y + r),
+                    pos2(c.x + r * 0.8, c.y),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        }
         Icon::Close => {
             painter.line_segment([pos2(c.x - r, c.y - r), pos2(c.x + r, c.y + r)], stroke);
             painter.line_segment([pos2(c.x - r, c.y + r), pos2(c.x + r, c.y - r)], stroke);
+        }
+        Icon::Crosshair => {
+            let ring = r * 1.2;
+            painter.circle_stroke(c, ring, stroke);
+            for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                let dir = vec2(dx, dy);
+                painter.line_segment([c + dir * (ring * 0.4), c + dir * (ring * 1.7)], stroke);
+            }
         }
     }
 }
